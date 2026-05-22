@@ -1,7 +1,6 @@
 an4rch Development Public Source License (ADPSL) v1.0
 
 Copyright (c) 2026 an4rch Development
-All rights reserved.
 
 Permission is granted to use, study, modify, fork,
 compile, and distribute this software and its source code,
@@ -16,6 +15,15 @@ If you distribute compiled binaries, executables,
 or modified versions of this software, you must also
 provide access to the complete corresponding source code.
 
+The source code must be provided through:
+- a public repository,
+- a direct download,
+- or another freely accessible method.
+
+Access to the corresponding source code must remain
+available for as long as the binaries or executable
+forms of the software are distributed.
+
 3. Attribution
 You may not claim this software or derivative works
 as your own original work.
@@ -26,20 +34,17 @@ All distributions and derivative works must clearly include:
 - and this license.
 
 4. Commercial Use
-Commercial use, redistribution, and selling are permitted,
-provided that:
-- proper attribution is given,
-- the original author or organization is credited,
-- and this license is included.
+Commercial use, redistribution, and selling are permitted
+under the conditions of this license.
 
 5. License Preservation
 This license file and all copyright notices must remain
 included in all copies, forks, and derivative works.
 
 6. Future License Versions
-This project is licensed under the an4rch Development
-Public Source License (ADPSL) version 1.0
-or any later version published by an4rch Development.
+Projects may choose to use version 1.0
+or any later version published by an4rch Development,
+if explicitly stated by the project or copyright holder.
 
 7. Liability
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY
