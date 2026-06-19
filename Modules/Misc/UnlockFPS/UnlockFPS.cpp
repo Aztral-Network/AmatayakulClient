@@ -88,7 +88,7 @@ void UnlockFPS::UpdateFPS() {
 void UnlockFPS::SetFPS(float fps)
 {
     if (fps < 5.0f) fps = 5.0f;
-    if (fps > 500.0f) fps = 500.0f;
+    if (fps > 1000.0f) fps = 1000.0f;
 
     targetFPS = fps;
     if (perfFrequency.QuadPart == 0) {
@@ -140,7 +140,7 @@ void UnlockFPS::RenderArrayList(ImDrawList* draw, ImVec2 arrayListStart, float& 
 }
 
 void UnlockFPS::RenderMenu() {
-    GUI::ToggleButton("Unlock FPS", &g_unlockFpsEnabled);
+    GUI::RenderCustomSwitch("Unlock FPS", &g_unlockFpsEnabled);
     static bool prevState = false;
     if (g_unlockFpsEnabled != prevState) {
         prevState = g_unlockFpsEnabled;
@@ -153,9 +153,9 @@ void UnlockFPS::RenderMenu() {
         }
     }
 
-    if (g_unlockFpsEnabled) {
-        ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.40f, 0.18f, 0.28f, 0.8f));
-        ImGui::SliderFloat("FPS Limit", &g_fpsLimit, 5.0f, 240.0f, "%.0f FPS");
-        ImGui::PopStyleColor();
+    if (GUI::BeginModuleSettings("UnlockFPS", &g_unlockFpsEnabled)) {
+        ImGui::TextColored(ImVec4(1.0f, 0.0f, 0.0f, 1.0f), "This module is very unstable; use it at your own risk.\n It causes tearing and other visual problems.");
+        ImGui::SliderFloat("FPS Limit", &g_fpsLimit, 5.0f, 1000.0f, "%.0f FPS");
+        GUI::EndModuleSettings();
     }
 }

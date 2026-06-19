@@ -6,6 +6,7 @@
 // Forward declarations
 class HudElement;
 class ImDrawList;
+struct ImVec2;
 
 /// @brief Module manager - Initializes and manages all modules
 class Module {

@@ -23,11 +23,21 @@ float FPSCounter::g_fpsY = 0.05f;
 bool FPSCounter::g_fpsFirstRender = false;
 HudElement* FPSCounter::g_fpsHud = nullptr;
 
+bool FPSCounter::g_showBackground = false;
+float FPSCounter::g_bgOpacity = 0.5f;
+bool FPSCounter::g_showShadow = false;
+float FPSCounter::g_shadowSpread = 10.0f;
+float FPSCounter::g_shadowBlur = 10.0f;
+bool FPSCounter::g_showTextShadow = true;
+float FPSCounter::g_textShadowOffset = 1.0f;
+ImVec4 FPSCounter::g_accentColor = ImVec4(1.0f, 0.4f, 0.8f, 1.0f);
+
 // Forward declarations
 extern bool g_showMenu;
 
 void FPSCounter::Initialize(HudElement* hudElement) {
     g_fpsHud = hudElement;
+    hudElement->resizable = true;
 }
 
 float FPSCounter::GetFPS() {
@@ -84,122 +94,95 @@ void FPSCounter::RenderArrayList(ImDrawList* draw, ImVec2 arrayListStart, float&
 }
 
 void FPSCounter::RenderDisplay(float screenWidth, float screenHeight) {
+    if (g_fpsCounterAnim <= 0.01f) return;
     if (!g_fpsHud) return;
 
-    if (g_showFpsCounter || g_fpsCounterAnim > 0.01f) {
-        // Initialize position on first draw
-        if (g_fpsHud->pos.x == 0 && g_fpsHud->pos.y == 0) {
-            g_fpsHud->pos = ImVec2(screenWidth / 2.0f - 50, 50);
+    float fps = GetFPS();
+    char fpsText[64];
+    sprintf_s(fpsText, "FPS: %.0f", fps);
+
+    float fontSize = ImGui::GetFontSize() * g_fpsTextScale * g_fpsHud->scale;
+    ImVec2 textSize = ImGui::GetFont()->CalcTextSizeA(fontSize, FLT_MAX, 0.0f, fpsText);
+    float padding = 20.0f * g_fpsTextScale * g_fpsHud->scale;
+    g_fpsHud->size = ImVec2(textSize.x + padding, textSize.y + padding);
+
+    if (g_showMenu) {
+        g_fpsHud->HandleDrag(true);
+        g_fpsHud->ClampToScreen();
+
+        ImDrawList* hudDraw = ImGui::GetForegroundDrawList();
+        if (hudDraw) {
+            g_fpsHud->RenderHudEditor(hudDraw);
+        }
+    }
+
+    float easedAnim = Animations::EaseOutExpo(g_fpsCounterAnim);
+    ImGui::SetNextWindowPos(g_fpsHud->pos, ImGuiCond_Always);
+    ImGui::SetNextWindowSize(g_fpsHud->size, ImGuiCond_Always);
+    ImGui::SetNextWindowBgAlpha(0.0f);
+
+    ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove;
+
+    if (ImGui::Begin("##FPSOverlay", nullptr, flags)) {
+        ImDrawList* draw = ImGui::GetWindowDrawList();
+        ImVec2 p = ImGui::GetWindowPos();
+        ImVec2 s = ImGui::GetWindowSize();
+
+        if (g_showShadow) {
+            GUI::DrawShadow(draw, p, s, g_shadowSpread, g_shadowBlur * easedAnim, 0.4f * easedAnim);
         }
 
-        // Calculate FPS
-        float fps = GetFPS();
-        char fpsText[64];
-        sprintf_s(fpsText, sizeof(fpsText), "%.0f FPS", fps);
-
-        ImFont* fpsFont = ImGui::GetFont();
-        if (fpsFont) {
-            float fontSize = 18.0f * g_fpsTextScale;
-            ImVec2 textSize = ImGui::CalcTextSize(fpsText);
-
-            // Update collision size from text
-            g_fpsHud->size = ImVec2(
-                textSize.x * g_fpsTextScale + 4.0f,
-                fontSize + 4.0f
-            );
+        if (g_showBackground) {
+            draw->AddRectFilled(p, ImVec2(p.x + s.x, p.y + s.y), ImColor(15, 15, 25, (int)(g_bgOpacity * 255 * easedAnim)), 10.0f);
         }
 
-        // Handle FPS counter drag when menu is open
-        if (g_showMenu) {
-            g_fpsHud->HandleDrag(true);
-            g_fpsHud->ClampToScreen();
+        ImVec2 textPos = ImVec2(p.x + (s.x - textSize.x) * 0.5f, p.y + (s.y - textSize.y) * 0.5f);
 
-            // Draw collision border (cyan)
-            ImDrawList* debugDraw = ImGui::GetForegroundDrawList();
-            if (debugDraw) {
-                ImVec2 p1 = g_fpsHud->pos;
-                ImVec2 p2 = ImVec2(g_fpsHud->pos.x + g_fpsHud->size.x, g_fpsHud->pos.y + g_fpsHud->size.y);
-                debugDraw->AddRect(p1, p2, ImGui::GetColorU32(ImVec4(0.0f, 1.0f, 1.0f, 0.8f)), 0.0f, 0, 2.0f);
-            }
+        ImU32 textCol = ImGui::ColorConvertFloat4ToU32(ImVec4(g_fpsTextColor.x, g_fpsTextColor.y, g_fpsTextColor.z, g_fpsTextColor.w * easedAnim * g_bgOpacity));
+
+        if (g_showTextShadow) {
+            ImU32 shadowCol = ImGui::ColorConvertFloat4ToU32(ImVec4(0, 0, 0, 0.8f * easedAnim * g_bgOpacity));
+            draw->AddText(ImGui::GetFont(), fontSize, ImVec2(textPos.x + g_textShadowOffset, textPos.y + g_textShadowOffset), shadowCol, fpsText);
         }
 
-        float easedAnim = Animations::EaseOutExpo(g_fpsCounterAnim);
-        float fpsAlpha = easedAnim * 255.0f;
+        GUI::AddTextGlow(draw, ImGui::GetFont(), fontSize, textPos, textCol, fpsText, 2.0f);
 
-        ImDrawList* fpsDraw = ImGui::GetForegroundDrawList();
-        if (fpsDraw && fpsAlpha > 1.0f) {
-            if (fpsFont) {
-                float fontSize = 18.0f * g_fpsTextScale;
-                ImVec2 textSize = ImGui::CalcTextSize(fpsText);
-
-                // Use HUD position
-                float posX = g_fpsHud->pos.x;
-                float posY = g_fpsHud->pos.y;
-
-                switch (g_fpsCounterAlignment) {
-                    case 0: // Left
-                        break;
-                    case 1: // Center
-                        posX += (g_fpsHud->size.x - (textSize.x * g_fpsTextScale)) / 2.0f;
-                        break;
-                    case 2: // Right
-                        posX += g_fpsHud->size.x - (textSize.x * g_fpsTextScale);
-                        break;
-                }
-
-                posY += (g_fpsHud->size.y - fontSize) / 2.0f;
-                ImVec2 finalPos = ImVec2(posX, posY);
-
-                // Shadow if enabled
-                if (g_fpsCounterShadow) {
-                    ImVec4 shadowCol = g_fpsCounterShadowColor;
-                    shadowCol.w *= easedAnim;
-                    fpsDraw->AddText(fpsFont, fontSize,
-                        ImVec2(finalPos.x + g_fpsCounterShadowOffset, finalPos.y + g_fpsCounterShadowOffset),
-                        ImGui::GetColorU32(shadowCol),
-                        fpsText
-                    );
-                }
-
-                // Main text
-                ImVec4 textCol = g_fpsTextColor;
-                textCol.w *= easedAnim;
-                fpsDraw->AddText(fpsFont, fontSize, finalPos, ImGui::GetColorU32(textCol), fpsText);
-            }
-        }
+        ImGui::End();
     }
 }
 
 void FPSCounter::RenderMenu() {
-    // Show FPS Counter toggle
-    GUI::ToggleButton("FPS Counter", &g_showFpsCounter);
+    bool prev = g_showFpsCounter;
+    GUI::RenderCustomSwitch("FPS Overlay", &g_showFpsCounter);
+    if (prev != g_showFpsCounter) {
+        if (g_showFpsCounter) {
+            g_fpsCounterEnableTime = GetTickCount64();
+            g_fpsCounterDisableTime = 0;
+        } else {
+            g_fpsCounterDisableTime = GetTickCount64();
+            g_fpsCounterEnableTime = 0;
+        }
+    }
 
-    if (g_showFpsCounter) {
-        ImGui::Separator();
-        ImGui::Text("FPS Counter Configuration");
-
-        ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * 0.8f);
-
-        // Color picker
-            ImGui::ColorEdit4("FPS Text Color##FPSCounter", (float*)&g_fpsTextColor, ImGuiColorEditFlags_NoInputs);
-        ImGui::SliderFloat("Text Opacity", &g_fpsTextColor.w, 0.0f, 1.0f, "%.2f");
-            
-
-        // Text Scale
-        ImGui::SliderFloat("FPS Text Scale##FPSCounter", &g_fpsTextScale, 0.5f, 2.0f, "%.2f");
-
-        // Alignment
-        const char* alignmentItems[] = { "Left", "Center", "Right" };
-        ImGui::Combo("FPS Text Alignment##FPSCounter", &g_fpsCounterAlignment, alignmentItems, IM_ARRAYSIZE(alignmentItems));
-
-        // Shadow
-        GUI::ToggleButton("FPS Text Shadow##FPSCounter", &g_fpsCounterShadow);
-        if (g_fpsCounterShadow) {
-            ImGui::SliderFloat("FPS Shadow Offset##FPSCounter", &g_fpsCounterShadowOffset, 0.0f, 10.0f, "%.1f");
-            ImGui::ColorEdit4("FPS Shadow Color##FPSCounter", (float*)&g_fpsCounterShadowColor, ImGuiColorEditFlags_NoInputs);
-        ImGui::SliderFloat("Shadow Opacity", &g_fpsCounterShadowColor.w, 0.0f, 1.0f, "%.2f");
+    if (GUI::BeginModuleSettings("FPS Overlay", &g_showFpsCounter)) {
+        ImGui::SliderFloat("Scale", &g_fpsTextScale, 0.5f, 2.0f, "%.1f");
+        ImGui::ColorEdit4("Text Color", (float*)&g_fpsTextColor, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
+        GUI::RenderCustomSwitch("Show Background", &g_showBackground);
+        if (g_showBackground) {
+            ImGui::SliderFloat("Opacity", &g_bgOpacity, 0.0f, 1.0f, "%.2f");
         }
 
-        ImGui::PopStyleVar();
+        GUI::RenderCustomSwitch("Show Shadow", &g_showShadow);
+        if (g_showShadow) {
+            ImGui::SliderFloat("Shadow Offset", &g_shadowSpread, 0.0f, 20.0f, "%.1f");
+        }
+
+        GUI::RenderCustomSwitch("Text Shadow", &g_showTextShadow);
+        if (g_showTextShadow) {
+            ImGui::SliderFloat("Text Shadow Offset", &g_textShadowOffset, 0.0f, 5.0f, "%.1f");
+        }
+
+        ImGui::ColorEdit4("Accent Color", (float*)&g_accentColor, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_AlphaBar);
+        GUI::EndModuleSettings();
     }
 }

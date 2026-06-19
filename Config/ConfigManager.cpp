@@ -1,6 +1,7 @@
 #include "ConfigManager.hpp"
 #include "Modules/ModuleHeader.hpp"
 #include "Modules/Terminal/Terminal.hpp"
+#include "GUI/GUI.hpp"
 #include <iostream>
 #include <fstream>
 #include <algorithm>
@@ -42,16 +43,16 @@ void ConfigManager::Initialize() {
         if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, NULL, &localAppDataPath)) && localAppDataPath) {
             std::wstring wpath(localAppDataPath);
             CoTaskMemFree(localAppDataPath);
-            baseDir = std::filesystem::path(wpath) / "Packages" / "Microsoft.MinecraftUWP_8wekyb3d8bbwe" / "LocalState" / "games" / "com.mojang" / "amatayakul";
+            baseDir = std::filesystem::path(wpath) / "Packages" / "Microsoft.MinecraftUWP_8wekyb3d8bbwe" / "LocalState" / "games" / "com.mojang" / "An4rch" / "Amatayakul";
         } else {
             char* la = std::getenv("LOCALAPPDATA");
             if (la && strlen(la) > 0)
-                baseDir = std::filesystem::path(la) / "Packages" / "Microsoft.MinecraftUWP_8wekyb3d8bbwe" / "LocalState" / "games" / "com.mojang" / "amatayakul";
+                baseDir = std::filesystem::path(la) / "Packages" / "Microsoft.MinecraftUWP_8wekyb3d8bbwe" / "LocalState" / "games" / "com.mojang" / "An4rch" / "Amatayakul";
             else
                 baseDir = std::filesystem::current_path() / "amatayakul";
         }
         if (!EnsureDirectoryExists(baseDir.string())) {
-            baseDir = std::filesystem::current_path() / "amatayakul";
+            baseDir = std::filesystem::current_path() / "An4rch" / "Amatayakul";
             EnsureDirectoryExists(baseDir.string());
         }
         configDir = baseDir.string();
@@ -59,7 +60,7 @@ void ConfigManager::Initialize() {
             configDir += "\\";
         initialized = true;
     } catch (...) {
-        configDir = (std::filesystem::current_path() / "amatayakul").string();
+        configDir = (std::filesystem::current_path() / "An4rch" / "Amatayakul").string();
         EnsureDirectoryExists(configDir);
         if (!configDir.empty() && configDir.back() != '\\' && configDir.back() != '/')
             configDir += "\\";
@@ -137,6 +138,9 @@ nlohmann::json ConfigManager::CollectCurrentConfig() {
     c["version"] = "2.0";
     c["timestamp"] = std::time(nullptr);
 
+    // --- Theme ---
+    c["Theme"]["current"] = (int)GUI::g_currentTheme;
+
     // --- Watermark ---
     auto& wm = c["Watermark"];
     wm["enabled"] = Watermark::g_showWatermark;
@@ -144,20 +148,24 @@ nlohmann::json ConfigManager::CollectCurrentConfig() {
     wm["chromaEnabled"] = Watermark::g_chromaEnabled;
     wm["textColor"] = Vec4ToJson(Watermark::g_textColor.x, Watermark::g_textColor.y, Watermark::g_textColor.z, Watermark::g_textColor.w);
     wm["logoScale"] = Watermark::g_logoScale;
-    if (Watermark::g_watermarkHud) { wm["posX"] = Watermark::g_watermarkHud->pos.x; wm["posY"] = Watermark::g_watermarkHud->pos.y; }
+    if (Watermark::g_watermarkHud) { wm["posX"] = Watermark::g_watermarkHud->pos.x; wm["posY"] = Watermark::g_watermarkHud->pos.y; wm["scale"] = Watermark::g_watermarkHud->scale; }
 
     // --- RenderInfo ---
     auto& ri = c["RenderInfo"];
     ri["enabled"] = RenderInfo::g_showRenderInfo;
-    if (RenderInfo::g_renderInfoHud) { ri["posX"] = RenderInfo::g_renderInfoHud->pos.x; ri["posY"] = RenderInfo::g_renderInfoHud->pos.y; }
+    if (RenderInfo::g_renderInfoHud) { ri["posX"] = RenderInfo::g_renderInfoHud->pos.x; ri["posY"] = RenderInfo::g_renderInfoHud->pos.y; ri["scale"] = RenderInfo::g_renderInfoHud->scale; }
 
     // --- ArrayList ---
     c["ArrayList"]["enabled"] = ArrayList::g_showArrayList;
+    extern HudElement g_arrayListHud;
+    c["ArrayList"]["posX"] = g_arrayListHud.pos.x;
+    c["ArrayList"]["posY"] = g_arrayListHud.pos.y;
+    c["ArrayList"]["scale"] = g_arrayListHud.scale;
 
     // --- Keystrokes ---
     auto& ks = c["Keystrokes"];
     ks["enabled"] = Keystrokes::g_showKeystrokes;
-    if (Keystrokes::g_keystrokesHud) { ks["posX"] = Keystrokes::g_keystrokesHud->pos.x; ks["posY"] = Keystrokes::g_keystrokesHud->pos.y; }
+    if (Keystrokes::g_keystrokesHud) { ks["posX"] = Keystrokes::g_keystrokesHud->pos.x; ks["posY"] = Keystrokes::g_keystrokesHud->pos.y; ks["scale"] = Keystrokes::g_keystrokesHud->scale; }
     ks["uiScale"] = Keystrokes::g_keystrokesUIScale;
     ks["blurEffect"] = Keystrokes::g_keystrokesBlurEffect;
     ks["rounding"] = Keystrokes::g_keystrokesRounding;
@@ -199,7 +207,7 @@ nlohmann::json ConfigManager::CollectCurrentConfig() {
     // --- CPSCounter ---
     auto& cps = c["CPSCounter"];
     cps["enabled"] = CPSCounter::g_showCpsCounter;
-    if (CPSCounter::g_cpsHud) { cps["posX"] = CPSCounter::g_cpsHud->pos.x; cps["posY"] = CPSCounter::g_cpsHud->pos.y; }
+    if (CPSCounter::g_cpsHud) { cps["posX"] = CPSCounter::g_cpsHud->pos.x; cps["posY"] = CPSCounter::g_cpsHud->pos.y; cps["scale"] = CPSCounter::g_cpsHud->scale; }
     cps["format"] = CPSCounter::g_cpsCounterFormat;
     cps["textScale"] = CPSCounter::g_cpsTextScale;
     cps["alignment"] = CPSCounter::g_cpsCounterAlignment;
@@ -211,7 +219,7 @@ nlohmann::json ConfigManager::CollectCurrentConfig() {
     // --- FPSCounter ---
     auto& fps = c["FPSCounter"];
     fps["enabled"] = FPSCounter::g_showFpsCounter;
-    if (FPSCounter::g_fpsHud) { fps["posX"] = FPSCounter::g_fpsHud->pos.x; fps["posY"] = FPSCounter::g_fpsHud->pos.y; }
+    if (FPSCounter::g_fpsHud) { fps["posX"] = FPSCounter::g_fpsHud->pos.x; fps["posY"] = FPSCounter::g_fpsHud->pos.y; fps["scale"] = FPSCounter::g_fpsHud->scale; }
     fps["textScale"] = FPSCounter::g_fpsTextScale;
     fps["alignment"] = FPSCounter::g_fpsCounterAlignment;
     fps["shadow"] = FPSCounter::g_fpsCounterShadow;
@@ -232,6 +240,9 @@ nlohmann::json ConfigManager::CollectCurrentConfig() {
     uf["enabled"] = UnlockFPS::g_unlockFpsEnabled;
     uf["fpsLimit"] = UnlockFPS::g_fpsLimit;
 
+    // --- AutoSprint (Movement) ---
+    c["Movement"]["AutoSprint"]["enabled"] = AutoSprint::g_autoSprintEnabled;
+
     return c;
 }
 
@@ -244,11 +255,20 @@ nlohmann::json ConfigManager::CollectCurrentConfig() {
 #define LOAD_VEC4(section, key, var) if (c.contains(section) && c[section].contains(key)) JsonToVec4(c[section][key], var.x, var.y, var.z, var.w)
 
 void ConfigManager::ApplyConfig(const nlohmann::json& c) {
+    // --- Theme ---
+    if (c.contains("Theme") && c["Theme"].contains("current")) {
+        int themeInt = c["Theme"]["current"];
+        if (themeInt >= 0 && themeInt < GUI::Theme_Max) {
+            GUI::ApplyThemePreset((GUI::ThemePreset)themeInt);
+        }
+    }
+
     // --- Watermark ---
     LOAD_BOOL("Watermark", "enabled", Watermark::g_showWatermark);
     if (c.contains("Watermark") && Watermark::g_watermarkHud) {
         if (c["Watermark"].contains("posX")) Watermark::g_watermarkHud->pos.x = c["Watermark"]["posX"];
         if (c["Watermark"].contains("posY")) Watermark::g_watermarkHud->pos.y = c["Watermark"]["posY"];
+        if (c["Watermark"].contains("scale")) Watermark::g_watermarkHud->scale = c["Watermark"]["scale"];
     }
 
     // --- RenderInfo ---
@@ -256,16 +276,24 @@ void ConfigManager::ApplyConfig(const nlohmann::json& c) {
     if (c.contains("RenderInfo") && RenderInfo::g_renderInfoHud) {
         if (c["RenderInfo"].contains("posX")) RenderInfo::g_renderInfoHud->pos.x = c["RenderInfo"]["posX"];
         if (c["RenderInfo"].contains("posY")) RenderInfo::g_renderInfoHud->pos.y = c["RenderInfo"]["posY"];
+        if (c["RenderInfo"].contains("scale")) RenderInfo::g_renderInfoHud->scale = c["RenderInfo"]["scale"];
     }
 
     // --- ArrayList ---
     LOAD_BOOL("ArrayList", "enabled", ArrayList::g_showArrayList);
+    extern HudElement g_arrayListHud;
+    if (c.contains("ArrayList")) {
+        if (c["ArrayList"].contains("posX")) g_arrayListHud.pos.x = c["ArrayList"]["posX"];
+        if (c["ArrayList"].contains("posY")) g_arrayListHud.pos.y = c["ArrayList"]["posY"];
+        if (c["ArrayList"].contains("scale")) g_arrayListHud.scale = c["ArrayList"]["scale"];
+    }
 
     // --- Keystrokes ---
     LOAD_BOOL("Keystrokes", "enabled", Keystrokes::g_showKeystrokes);
     if (c.contains("Keystrokes") && Keystrokes::g_keystrokesHud) {
         if (c["Keystrokes"].contains("posX")) Keystrokes::g_keystrokesHud->pos.x = c["Keystrokes"]["posX"];
         if (c["Keystrokes"].contains("posY")) Keystrokes::g_keystrokesHud->pos.y = c["Keystrokes"]["posY"];
+        if (c["Keystrokes"].contains("scale")) Keystrokes::g_keystrokesHud->scale = c["Keystrokes"]["scale"];
     }
     LOAD_FLOAT("Keystrokes", "uiScale", Keystrokes::g_keystrokesUIScale);
     LOAD_BOOL("Keystrokes", "blurEffect", Keystrokes::g_keystrokesBlurEffect);
@@ -309,6 +337,7 @@ void ConfigManager::ApplyConfig(const nlohmann::json& c) {
     if (c.contains("CPSCounter") && CPSCounter::g_cpsHud) {
         if (c["CPSCounter"].contains("posX")) CPSCounter::g_cpsHud->pos.x = c["CPSCounter"]["posX"];
         if (c["CPSCounter"].contains("posY")) CPSCounter::g_cpsHud->pos.y = c["CPSCounter"]["posY"];
+        if (c["CPSCounter"].contains("scale")) CPSCounter::g_cpsHud->scale = c["CPSCounter"]["scale"];
     }
     LOAD_STRING("CPSCounter", "format", CPSCounter::g_cpsCounterFormat);
     LOAD_FLOAT("CPSCounter", "textScale", CPSCounter::g_cpsTextScale);
@@ -323,6 +352,7 @@ void ConfigManager::ApplyConfig(const nlohmann::json& c) {
     if (c.contains("FPSCounter") && FPSCounter::g_fpsHud) {
         if (c["FPSCounter"].contains("posX")) FPSCounter::g_fpsHud->pos.x = c["FPSCounter"]["posX"];
         if (c["FPSCounter"].contains("posY")) FPSCounter::g_fpsHud->pos.y = c["FPSCounter"]["posY"];
+        if (c["FPSCounter"].contains("scale")) FPSCounter::g_fpsHud->scale = c["FPSCounter"]["scale"];
     }
     LOAD_FLOAT("FPSCounter", "textScale", FPSCounter::g_fpsTextScale);
     LOAD_INT("FPSCounter", "alignment", FPSCounter::g_fpsCounterAlignment);
@@ -341,6 +371,12 @@ void ConfigManager::ApplyConfig(const nlohmann::json& c) {
     // --- UnlockFPS ---
     LOAD_BOOL("UnlockFPS", "enabled", UnlockFPS::g_unlockFpsEnabled);
     LOAD_FLOAT("UnlockFPS", "fpsLimit", UnlockFPS::g_fpsLimit);
+
+    // --- AutoSprint (Movement) ---
+    if (c.contains("Movement") && c["Movement"].contains("AutoSprint")) {
+        if (c["Movement"]["AutoSprint"].contains("enabled"))
+            AutoSprint::g_autoSprintEnabled = c["Movement"]["AutoSprint"]["enabled"];
+    }
 }
 
 void ConfigManager::ReloadModulesAfterConfig() {
@@ -390,5 +426,12 @@ void ConfigManager::ReloadModulesAfterConfig() {
     } else {
         RenderInfo::g_renderInfoAnim = 0.0f;
         RenderInfo::g_renderInfoEnableTime = 0;
+    }
+
+    // AutoSprint
+    if (AutoSprint::g_autoSprintEnabled) {
+        AutoSprint::Enable();
+    } else {
+        AutoSprint::Disable();
     }
 }

@@ -46,6 +46,7 @@ static ImVec4 GetChromaColor(float time) {
 
 void Watermark::Initialize(HudElement* hud) {
     g_watermarkHud = hud;
+    hud->resizable = true;
 }
 
 void Watermark::UpdateAnimation(ULONGLONG now) {
@@ -106,11 +107,19 @@ void Watermark::RenderDisplay() {
         ImVec2 textPos = g_watermarkHud->pos;
 
         if (g_fancyMode) {
-            // ========== FANCY MODE: Render logo image ==========
-            ImTextureID logoTex = GUI::g_icons.count("logo") ? GUI::g_icons["logo"] : (ImTextureID)0;
+            // ========== FANCY MODE: Render logo image (theme-aware) ==========
+            const char* logoKey = "logo";
+            switch (GUI::g_currentTheme) {
+                case GUI::Theme_SakuraBlossom: logoKey = "logo_pink"; break;
+                case GUI::Theme_Cyberpunk:     logoKey = "logo_cyan"; break;
+                case GUI::Theme_EmeraldForest: logoKey = "logo_green"; break;
+                case GUI::Theme_DeepSea:       logoKey = "logo_blue"; break;
+                default: break;
+            }
+            ImTextureID logoTex = GUI::g_icons.count(logoKey) ? GUI::g_icons[logoKey] : (ImTextureID)0;
             if (logoTex) {
-                float logoW = 200.0f * g_logoScale;
-                float logoH = 80.0f * g_logoScale;
+                float logoW = 200.0f * g_logoScale * g_watermarkHud->scale;
+                float logoH = logoW * 301.0f / 1127.0f;
                 
                 ImVec4 tintColor = ImVec4(1.0f, 1.0f, 1.0f, watermarkAlpha);
                 watermarkDraw->AddImage(logoTex, textPos, 
@@ -122,7 +131,7 @@ void Watermark::RenderDisplay() {
             } else {
                 // Fallback to text if logo failed to load
                 ImFont* font = ImGui::GetFont();
-                float fontSize = 32.0f;
+                float fontSize = 32.0f * g_watermarkHud->scale;
                 watermarkDraw->AddText(font, fontSize, textPos, IM_COL32(180, 30, 45, (int)(watermarkAlpha * 255)), "Amatayakul");
                 ImVec2 ts = ImGui::CalcTextSize("Amatayakul");
                 float fontScale = fontSize / 16.0f;
@@ -131,7 +140,7 @@ void Watermark::RenderDisplay() {
         } else {
             // ========== LEGACY MODE: Render text ==========
             ImFont* font = ImGui::GetFont();
-            float fontSize = 32.0f;
+            float fontSize = 32.0f * g_watermarkHud->scale;
             
             ImVec4 renderColor;
             if (g_chromaEnabled) {
@@ -161,50 +170,39 @@ void Watermark::RenderDisplay() {
             g_watermarkHud->size = ImVec2(textSize.x * fontScale + 20, textSize.y * fontScale + 10);
         }
 
-        // DEBUG: show hitbox only when menu is open
+        // HUD editor overlay when menu is open
         if (g_showMenu) {
-            watermarkDraw->AddRect(
-                g_watermarkHud->pos,
-                ImVec2(g_watermarkHud->pos.x + g_watermarkHud->size.x, g_watermarkHud->pos.y + g_watermarkHud->size.y),
-                IM_COL32(255, 100, 100, 80)
-            );
+            g_watermarkHud->HandleDrag(true);
+            g_watermarkHud->ClampToScreen();
+            g_watermarkHud->RenderHudEditor(watermarkDraw);
         }
     }
 }
 
 void Watermark::RenderMenu() {
-    // Show Watermark
-    GUI::ToggleButton("Watermark", &g_showWatermark);
-    
-    if (g_showWatermark) {
-        ImGui::Separator();
-        ImGui::Text("Watermark Mode");
-        
-        // Fancy vs Legacy radio buttons
-        if (ImGui::RadioButton("Fancy Mode (Logo)", g_fancyMode)) {
-            g_fancyMode = true;
+    GUI::RenderCustomSwitch("Watermark", &g_showWatermark);
+
+    if (GUI::BeginModuleSettings("Watermark", &g_showWatermark)) {
+        const char* modes[] = { "Text", "Image" };
+        int currentMode = g_fancyMode ? 1 : 0;
+        if (ImGui::Combo("Display Mode", &currentMode, modes, IM_ARRAYSIZE(modes))) {
+            g_fancyMode = (currentMode == 1);
         }
-        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Uses the Amatayakul logo image");
-        
-        if (ImGui::RadioButton("Legacy Mode (Text)", !g_fancyMode)) {
-            g_fancyMode = false;
-        }
-        if (ImGui::IsItemHovered()) ImGui::SetTooltip("Uses styled text with glow effects");
-        
-        ImGui::Separator();
-        
+
         if (g_fancyMode) {
-            // Fancy mode settings
+            ImGui::Separator();
+            ImGui::Text("Image Settings");
             ImGui::SliderFloat("Logo Scale", &g_logoScale, 0.3f, 3.0f, "%.2f");
         } else {
-            // Legacy mode settings
-            GUI::ToggleButton("Chroma##WM", &g_chromaEnabled);
-            if (ImGui::IsItemHovered()) ImGui::SetTooltip("Cycles through colors automatically");
-            
+            ImGui::Separator();
+            ImGui::Text("Text Settings");
+            GUI::RenderCustomSwitch("Chroma##WM", &g_chromaEnabled);
             if (!g_chromaEnabled) {
                 ImGui::ColorEdit4("Text Color##WM", (float*)&g_textColor, ImGuiColorEditFlags_NoInputs);
                 ImGui::SliderFloat("Text Opacity##WM", &g_textColor.w, 0.0f, 1.0f, "%.2f");
             }
         }
+
+        GUI::EndModuleSettings();
     }
 }

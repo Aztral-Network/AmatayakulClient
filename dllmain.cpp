@@ -9,6 +9,10 @@
 #include <vector>
 #include <psapi.h>
 
+#ifndef DXGI_PRESENT_ALLOW_TEARING
+#define DXGI_PRESENT_ALLOW_TEARING 0x00000200UL
+#endif
+
 #include "minhook/MinHook.h"
 #include "ImGui/imgui.h"
 #include "ImGui/backend/imgui_impl_dx11.h"
@@ -28,38 +32,10 @@
 #pragma comment(lib, "d3dcompiler.lib")
 #pragma comment(lib, "psapi.lib")
 
-extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
-
 // Global variables
-WNDPROC oWndProc = NULL;
 HMODULE g_hModule = NULL;
 bool g_showMenu = false;
 bool g_prevShowMenu = false;
-
-LRESULT CALLBACK hkWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam) {
-    if (g_showMenu) {
-        ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam);
-
-        switch (msg)
-        {
-            case WM_MOUSEMOVE:
-            case WM_LBUTTONDOWN:
-            case WM_LBUTTONUP:
-            case WM_RBUTTONDOWN:
-            case WM_RBUTTONUP:
-            case WM_MOUSEWHEEL:
-            case WM_KEYDOWN:
-            case WM_KEYUP:
-            case WM_SYSKEYDOWN:
-            case WM_SYSKEYUP:
-                // Ensure we don't block the toggle key
-                if (wParam == VK_RSHIFT) break;
-                return true; 
-        }
-    }
-    
-    return CallWindowProc(oWndProc, hWnd, msg, wParam, lParam);
-}
 
 ID3D11Device* pDevice = NULL;
 ID3D11DeviceContext* pContext = NULL;
@@ -67,8 +43,6 @@ ID3D11RenderTargetView* mainRenderTargetView = NULL;
 HWND g_window = NULL;
 bool g_RequestUnload = false;
 float g_lastW = 0, g_lastH = 0;
-ULONGLONG g_tabChangeTime = 0;
-float g_tabAnim = 0.0f;
 
 // Keyboard hook
 LRESULT CALLBACK KeyboardBlockHookProc(int nCode, WPARAM wParam, LPARAM lParam) {
@@ -94,7 +68,7 @@ HudElement g_renderInfoHud = { ImVec2(10, 100), ImVec2(220, 120) };
 HudElement g_arrayListHud = { ImVec2(0, 10), ImVec2(300, 400) };
 HudElement g_keystrokesHud = { ImVec2(30, 0), ImVec2(140, 150) };
 HudElement g_cpsHud = { ImVec2(500, 400), ImVec2(80, 30) };
-HudElement g_fpsHud = { ImVec2(0, 0), ImVec2(80, 30) };
+HudElement g_fpsHud = { ImVec2(10, 250), ImVec2(100, 35) };
 
 bool IsWindowsCursorVisible() {
     CURSORINFO ci = { 0 };
@@ -117,8 +91,12 @@ void CleanupRenderTarget() {
 }
 
 HRESULT STDMETHODCALLTYPE hkPresent_Impl(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT Flags) {
-    if (!g_vsync)
+    if (!g_vsync || UnlockFPS::g_unlockFpsEnabled) {
         SyncInterval = 0;
+        if (UnlockFPS::g_unlockFpsEnabled && UnlockFPS::g_fpsLimit > 61.0f) {
+            Flags |= DXGI_PRESENT_ALLOW_TEARING;
+        }
+    }
     
     if (!pDevice) {
         if (!pSwapChain) return Hook::oPresent(pSwapChain, SyncInterval, Flags);
@@ -135,7 +113,6 @@ HRESULT STDMETHODCALLTYPE hkPresent_Impl(IDXGISwapChain* pSwapChain, UINT SyncIn
             
             ImGui::CreateContext();
             if (ImGui_ImplWin32_Init(g_window) && ImGui_ImplDX11_Init(pDevice, pContext)) {
-                oWndProc = (WNDPROC)SetWindowLongPtr(g_window, GWLP_WNDPROC, (LONG_PTR)hkWndProc);
                 GUI::LoadFont();
                 GUI::LoadIcons(pDevice);
                 ImGui_ImplDX11_CreateDeviceObjects();
@@ -146,6 +123,22 @@ HRESULT STDMETHODCALLTYPE hkPresent_Impl(IDXGISwapChain* pSwapChain, UINT SyncIn
                 
                 g_gameBase = (uintptr_t)GetModuleHandleA(NULL);
                 Module::Initialize(g_gameBase, &g_renderInfoHud, &g_watermarkHud, &g_keystrokesHud, &g_cpsHud, &g_fpsHud);
+
+                HudElement::s_snapCount = 0;
+                HudElement::RegisterSnapTarget(&g_watermarkHud);
+                HudElement::RegisterSnapTarget(&g_renderInfoHud);
+                HudElement::RegisterSnapTarget(&g_arrayListHud);
+                HudElement::RegisterSnapTarget(&g_keystrokesHud);
+                HudElement::RegisterSnapTarget(&g_cpsHud);
+                HudElement::RegisterSnapTarget(&g_fpsHud);
+
+                // Pattern scan for AutoSprint
+                if (!AutoSprint::g_autoSprintAddr) {
+                    MODULEINFO mi;
+                    GetModuleInformation(GetCurrentProcess(), GetModuleHandleA(NULL), &mi, sizeof(mi));
+                    BYTE pattern[] = {0x0F, 0xB6, 0x41, 0x63, 0x48, 0x8D, 0x2D, 0x39, 0xE0, 0xC3, 0x00};
+                    AutoSprint::g_autoSprintAddr = PatternScan::Scan(g_gameBase, mi.SizeOfImage, pattern, sizeof(pattern));
+                }
                 
                 // Auto-load saved config
                 ConfigManager::AutoLoad();
@@ -209,6 +202,12 @@ HRESULT STDMETHODCALLTYPE hkPresent_Impl(IDXGISwapChain* pSwapChain, UINT SyncIn
     g_prevShowMenu = g_showMenu;
     GUI::g_showMenu = g_showMenu;
 
+    static bool wasMotionBlurEnabled = false;
+    if (!MotionBlur::g_motionBlurEnabled && wasMotionBlurEnabled) {
+        MotionBlur::CleanupBackbufferStorage();
+    }
+    wasMotionBlurEnabled = MotionBlur::g_motionBlurEnabled;
+
     ULONGLONG now = GetTickCount64();
     float dt = (float)(now - g_lastTime) / 1000.0f;
     g_lastTime = now;
@@ -231,24 +230,18 @@ HRESULT STDMETHODCALLTYPE hkPresent_Impl(IDXGISwapChain* pSwapChain, UINT SyncIn
 
     ImGui::NewFrame();
 
-    // ArrayList
-    if (ArrayList::g_showArrayList) {
-        g_arrayListHud.HandleDrag(g_showMenu);
-        g_arrayListHud.ClampToScreen();
-        if (g_arrayListHud.pos.x == 0 && g_arrayListHud.pos.y == 10) g_arrayListHud.pos.x = sw - 250;
-
-        ImDrawList* draw = ImGui::GetForegroundDrawList();
-        ImVec2 arrayListStart = g_arrayListHud.pos;
-        float yPos = arrayListStart.y;
-        ImVec2 arrayListEnd = arrayListStart;
-        Module::RenderArrayList(draw, arrayListStart, yPos, arrayListEnd);
-
-        if (g_showMenu) {
-            g_arrayListHud.size.y = arrayListEnd.y - arrayListStart.y;
-            draw->AddRect(arrayListStart, ImVec2(arrayListStart.x + g_arrayListHud.size.x, arrayListEnd.y), IM_COL32(255, 255, 255, 80));
-        }
+    // Motion Blur rendering (only when menu is closed)
+    if (MotionBlur::g_motionBlurEnabled && !g_showMenu && MotionBlur::g_previousFrames.size() > 0 && MotionBlur::g_motionBlurAnim > 0.01f) {
+        ImVec2 screenSize = ImGui::GetIO().DisplaySize;
+        ImDrawList* blurDraw = ImGui::GetBackgroundDrawList();
+        MotionBlur::RenderMotionBlur(blurDraw, screenSize);
     }
-        
+
+    // ArrayList HUD set up
+    g_arrayListHud.HandleDrag(g_showMenu);
+    g_arrayListHud.ClampToScreen();
+    if (g_arrayListHud.pos.x == 0 && g_arrayListHud.pos.y == 10) g_arrayListHud.pos.x = sw - 250;
+
     GUI::RenderNotification(sw, sh);
     if (GUI::g_menuAnim > 0.001f) GUI::RenderMenu(sw, sh);
     Module::RenderDisplay(sw, sh);

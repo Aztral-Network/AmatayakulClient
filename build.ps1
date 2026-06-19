@@ -150,6 +150,7 @@ $Sources =  "dllmain.cpp",
             "Modules/Visuals/CPSCounter/CPSCounter.cpp",
             "Modules/Visuals/FPSCounter/FPSCounter.cpp",
             "Modules/Visuals/MotionBlur/MotionBlur.cpp",
+            "Modules/Movement/AutoSprint/AutoSprint.cpp",
             "Modules/Misc/UnlockFPS/UnlockFPS.cpp",
             "Modules/Terminal/Terminal.cpp",
             "Modules/Info/Info.cpp",
@@ -216,7 +217,10 @@ foreach ($File in $Sources) {
 $ResourceObj = Join-Path $BuildDir "resources.o"
 if (!(Test-Path $BuildDir)) { New-Item -ItemType Directory -Path $BuildDir | Out-Null }
 
-if (!(Test-Path $ResourceObj) -or (Get-Item $ResourceFile).LastWriteTime -gt (Get-Item $ResourceObj).LastWriteTime) {
+$AssetsDir = Split-Path $ResourceFile
+$AssetsLastWrite = (Get-ChildItem -Path $AssetsDir -Recurse | Measure-Object -Property LastWriteTime -Maximum).Maximum
+
+if (!(Test-Path $ResourceObj) -or $AssetsLastWrite -gt (Get-Item $ResourceObj).LastWriteTime) {
     Write-Log "Compiling resource file: $ResourceFile" "Warn"
     
     & $windres $ResourceFile -O coff -o $ResourceObj 2>&1 | Tee-Object -Variable Err | Out-Null

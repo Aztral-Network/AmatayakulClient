@@ -14,9 +14,12 @@ class MotionBlur {
 public:
     static bool g_motionBlurEnabled;
     static float g_motionBlurAnim;
+    static ULONGLONG g_motionBlurEnableTime;
+    static ULONGLONG g_motionBlurDisableTime;
     static float g_blurIntensity;
     static float g_maxHistoryFrames;
     static float g_blurTimeConstant;
+    static bool g_blurDynamicMode;
     static std::string g_blurType;
     static std::vector<ID3D11ShaderResourceView*> g_previousFrames;
     static std::vector<float> g_frameTimestamps;

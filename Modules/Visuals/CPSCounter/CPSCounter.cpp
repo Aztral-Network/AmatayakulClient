@@ -46,6 +46,7 @@ extern bool g_showMenu;
 
 void CPSCounter::Initialize(HudElement* hudElement) {
     g_cpsHud = hudElement;
+    hudElement->resizable = true;
 }
 
 void CPSCounter::UpdateCPS(ULONGLONG now, bool lmbPressed, bool rmbPressed, bool prevLmbPressed, bool prevRmbPressed) {
@@ -135,12 +136,12 @@ void CPSCounter::RenderDisplay(int screenWidth, int screenHeight) {
         std::string cpsText = ProcessCPSCounterFormat(g_cpsCounterFormat, g_lmbCps, g_rmbCps);
         ImFont* cpsFont = ImGui::GetFont();
         if (cpsFont) {
-            float fontSize = 18.0f * g_cpsTextScale;
+            float fontSize = 18.0f * g_cpsTextScale * g_cpsHud->scale;
             ImVec2 textSize = cpsFont->CalcTextSizeA(fontSize, FLT_MAX, 0.0f, cpsText.c_str());
             // Update collision size from text
             g_cpsHud->size = ImVec2(
-                textSize.x + 8.0f,  // Small padding
-                textSize.y + 4.0f
+                textSize.x + 8.0f * g_cpsHud->scale,  // Small padding
+                textSize.y + 4.0f * g_cpsHud->scale
             );
         }
         
@@ -149,12 +150,9 @@ void CPSCounter::RenderDisplay(int screenWidth, int screenHeight) {
             g_cpsHud->HandleDrag(true);
             g_cpsHud->ClampToScreen();
             
-            // Draw collision border (cyan)
-            ImDrawList* debugDraw = ImGui::GetForegroundDrawList();
-            if (debugDraw) {
-                ImVec2 p1 = g_cpsHud->pos;
-                ImVec2 p2 = ImVec2(g_cpsHud->pos.x + g_cpsHud->size.x, g_cpsHud->pos.y + g_cpsHud->size.y);
-                debugDraw->AddRect(p1, p2, ImGui::GetColorU32(ImVec4(0.0f, 1.0f, 1.0f, 0.8f)), 0.0f, 0, 2.0f);
+            ImDrawList* hudDraw = ImGui::GetForegroundDrawList();
+            if (hudDraw) {
+                g_cpsHud->RenderHudEditor(hudDraw);
             }
         }
         
@@ -164,7 +162,7 @@ void CPSCounter::RenderDisplay(int screenWidth, int screenHeight) {
         ImDrawList* cpsDraw = ImGui::GetForegroundDrawList();
         if (cpsDraw && cpsAlpha > 1.0f) {
             if (cpsFont) {
-                float fontSize = 18.0f * g_cpsTextScale;
+                float fontSize = 18.0f * g_cpsTextScale * g_cpsHud->scale;
                 ImVec2 textSize = ImGui::CalcTextSize(cpsText.c_str());
                 
                 // Use HUD position
@@ -175,10 +173,10 @@ void CPSCounter::RenderDisplay(int screenWidth, int screenHeight) {
                     case 0: // Left
                         break;
                     case 1: // Center
-                        posX += (g_cpsHud->size.x - (textSize.x * g_cpsTextScale)) / 2.0f;
+                        posX += (g_cpsHud->size.x - (textSize.x * g_cpsTextScale * g_cpsHud->scale)) / 2.0f;
                         break;
                     case 2: // Right
-                        posX += g_cpsHud->size.x - (textSize.x * g_cpsTextScale);
+                        posX += g_cpsHud->size.x - (textSize.x * g_cpsTextScale * g_cpsHud->scale);
                         break;
                 }
                 
@@ -207,47 +205,42 @@ void CPSCounter::RenderDisplay(int screenWidth, int screenHeight) {
 
 void CPSCounter::RenderMenu() {
     static char cpsFormatBuf[256] = "{CPS} CPS";
-    
-    // Show CPS Counter toggle
-    GUI::ToggleButton("CPS Counter", &g_showCpsCounter);
-    
-    if (g_showCpsCounter) {
-        ImGui::Separator();
-        ImGui::Text("CPS Counter Configuration");
-        
-        ImGui::PushStyleVar(ImGuiStyleVar_Alpha, ImGui::GetStyle().Alpha * 0.8f);
-        
-        // Color picker
-        ImGui::ColorEdit4("CPS Text Color##CPSCounter", (float*)&g_cpsTextColor, ImGuiColorEditFlags_NoInputs);
-        ImGui::SliderFloat("Text Opacity", &g_cpsTextColor.w, 0.0f, 1.0f, "%.2f");
-        
-        
-        // Format string
-        if (!g_cpsCounterFirstRender) {
-            strncpy_s(cpsFormatBuf, sizeof(cpsFormatBuf), g_cpsCounterFormat.c_str(), _TRUNCATE);
-            g_cpsCounterFirstRender = true;
+
+    GUI::RenderCustomSwitch("CPS Counter", &g_showCpsCounter);
+
+    if (GUI::BeginModuleSettings("CPSCounter", &g_showCpsCounter)) {
+        ImGui::PushStyleColor(ImGuiCol_Tab, ImVec4(0.12f, 0.12f, 0.14f, 0.8f));
+        ImGui::PushStyleColor(ImGuiCol_TabHovered, ImVec4(GUI::g_colorAccent.x * 0.8f, GUI::g_colorAccent.y * 0.8f, GUI::g_colorAccent.z * 0.8f, 0.7f));
+        ImGui::PushStyleColor(ImGuiCol_TabSelected, GUI::g_colorAccent);
+        ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(GUI::g_colorAccent.x * 0.5f, GUI::g_colorAccent.y * 0.5f, GUI::g_colorAccent.z * 0.5f, 0.4f));
+        if (ImGui::BeginTabBar("CPSTabs")) {
+            if (ImGui::BeginTabItem("Text")) {
+                if (!g_cpsCounterFirstRender) {
+                    strncpy_s(cpsFormatBuf, sizeof(cpsFormatBuf), g_cpsCounterFormat.c_str(), _TRUNCATE);
+                    g_cpsCounterFirstRender = true;
+                }
+                if (ImGui::InputText("Format String##CPS", cpsFormatBuf, sizeof(cpsFormatBuf))) {
+                    g_cpsCounterFormat = std::string(cpsFormatBuf);
+                }
+                ImGui::TextDisabled("Use {CPS}, {LMB}, {RMB} as placeholders");
+                ImGui::SliderFloat("Text Scale##CPS", &g_cpsTextScale, 0.5f, 2.0f, "%.2f");
+                ImGui::ColorEdit4("Text Color##CPS", (float*)&g_cpsTextColor, ImGuiColorEditFlags_NoInputs);
+                ImGui::EndTabItem();
+            }
+            if (ImGui::BeginTabItem("Visual")) {
+                const char* alignmentItems[] = { "Left", "Center", "Right" };
+                ImGui::Combo("Alignment##CPS", &g_cpsCounterAlignment, alignmentItems, IM_ARRAYSIZE(alignmentItems));
+                GUI::RenderCustomSwitch("Text Shadow##CPS", &g_cpsCounterShadow);
+                if (g_cpsCounterShadow) {
+                    ImGui::SliderFloat("Shadow Offset##CPS", &g_cpsCounterShadowOffset, 0.0f, 10.0f, "%.1f");
+                    ImGui::ColorEdit4("Shadow Color##CPS", (float*)&g_cpsCounterShadowColor, ImGuiColorEditFlags_NoInputs);
+                }
+                ImGui::EndTabItem();
+            }
+            ImGui::EndTabBar();
         }
-        if (ImGui::InputText("Format String##CPS", cpsFormatBuf, sizeof(cpsFormatBuf))) {
-            g_cpsCounterFormat = std::string(cpsFormatBuf);
-        }
-        ImGui::TextWrapped("Use {CPS} for CPS counter");
-        
-        // Text Scale
-        ImGui::SliderFloat("CPS Text Scale##CPSCounter", &g_cpsTextScale, 0.5f, 2.0f, "%.2f");
-        
-        // Alignment
-        const char* alignmentItems[] = { "Left", "Center", "Right" };
-        ImGui::Combo("CPS Text Alignment##CPSCounter", &g_cpsCounterAlignment, alignmentItems, IM_ARRAYSIZE(alignmentItems));
-        
-        // Shadow
-        GUI::ToggleButton("CPS Text Shadow##CPSCounter", &g_cpsCounterShadow);
-        if (g_cpsCounterShadow) {
-            ImGui::SliderFloat("CPS Shadow Offset##CPSCounter", &g_cpsCounterShadowOffset, 0.0f, 10.0f, "%.1f");
-            ImGui::ColorEdit4("CPS Shadow Color##CPSCounter", (float*)&g_cpsCounterShadowColor, ImGuiColorEditFlags_NoInputs);
-        ImGui::SliderFloat("Shadow Opacity", &g_cpsCounterShadowColor.w, 0.0f, 1.0f, "%.2f");
-        }
-        
-        ImGui::PopStyleVar();  // Alpha
+        ImGui::PopStyleColor(4);
+        GUI::EndModuleSettings();
     }
 }
 

@@ -10,8 +10,6 @@ HRESULT(STDMETHODCALLTYPE* Hook::oPresent)(IDXGISwapChain* pSwapChain, UINT Sync
 HRESULT(STDMETHODCALLTYPE* Hook::oResizeBuffers)(IDXGISwapChain* pSwapChain, UINT BufferCount, UINT Width, UINT Height, DXGI_FORMAT NewFormat, UINT SwapChainFlags) = NULL;
 BOOL(WINAPI* Hook::oSetCursorPos)(int x, int y) = NULL;
 BOOL(WINAPI* Hook::oClipCursor)(const RECT* lpRect) = NULL;
-SHORT(WINAPI* Hook::oGetAsyncKeyState)(int vKey) = NULL;
-SHORT(WINAPI* Hook::oGetKeyState)(int vKey) = NULL;
 
 // External references from dllmain.cpp
 extern bool g_showMenu;
@@ -20,35 +18,49 @@ extern void CleanupRenderTarget();
 
 // Helper to get VTable address
 void* GetVTableAddress(int index) {
-    DXGI_SWAP_CHAIN_DESC sd = { 0 };
-    sd.BufferCount = 1; 
+    WNDCLASSEXA wc = { sizeof(WNDCLASSEXA), CS_CLASSDC, DefWindowProcA, 0L, 0L, GetModuleHandleA(NULL), NULL, NULL, NULL, NULL, "DX11DummyClass", NULL };
+    RegisterClassExA(&wc);
+    HWND hwnd = CreateWindowA("DX11DummyClass", "DX11DummyWindow", WS_OVERLAPPEDWINDOW, 100, 100, 300, 300, NULL, NULL, wc.hInstance, NULL);
+
+    DXGI_SWAP_CHAIN_DESC sd;
+    ZeroMemory(&sd, sizeof(sd));
+    sd.BufferCount = 1;
     sd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-    sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT; 
-    sd.OutputWindow = GetForegroundWindow();
-    sd.SampleDesc.Count = 1; 
-    sd.Windowed = TRUE; 
+    sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+    sd.OutputWindow = hwnd;
+    sd.SampleDesc.Count = 1;
+    sd.Windowed = TRUE;
     sd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
-    
-    ID3D11Device* d; 
-    ID3D11DeviceContext* c; 
-    IDXGISwapChain* s;
-    D3D_FEATURE_LEVEL fl = D3D_FEATURE_LEVEL_11_0;
-    
-    if (FAILED(D3D11CreateDeviceAndSwapChain(NULL, D3D_DRIVER_TYPE_HARDWARE, NULL, 0, &fl, 1, D3D11_SDK_VERSION, &sd, &s, &d, NULL, &c))) 
-        return 0;
-    
-    void* a = (*(void***)s)[index];
-    s->Release(); 
-    d->Release(); 
-    c->Release(); 
-    return a;
+
+    ID3D11Device* device = nullptr;
+    ID3D11DeviceContext* context = nullptr;
+    IDXGISwapChain* swapChain = nullptr;
+    D3D_FEATURE_LEVEL featureLevel = D3D_FEATURE_LEVEL_11_0;
+
+    if (FAILED(D3D11CreateDeviceAndSwapChain(NULL, D3D_DRIVER_TYPE_HARDWARE, NULL, 0, &featureLevel, 1, D3D11_SDK_VERSION, &sd, &swapChain, &device, NULL, &context))) {
+        DestroyWindow(hwnd);
+        UnregisterClassA("DX11DummyClass", wc.hInstance);
+        return nullptr;
+    }
+
+    void** pVTable = *reinterpret_cast<void***>(swapChain);
+    void* address = pVTable[index];
+
+    swapChain->Release();
+    device->Release();
+    context->Release();
+    DestroyWindow(hwnd);
+    UnregisterClassA("DX11DummyClass", wc.hInstance);
+
+    return address;
 }
 
 void Hook::Initialize() {
     // Reduced sleep for faster injection
     Sleep(500);
     
-    if (MH_Initialize() != MH_OK) {
+    MH_STATUS status = MH_Initialize();
+    if (status != MH_OK && status != MH_ERROR_ALREADY_INITIALIZED) {
         return;
     }
     
@@ -62,16 +74,12 @@ void Hook::Initialize() {
     
     void* pSetCP = (void*)GetProcAddress(GetModuleHandleA("user32.dll"), "SetCursorPos");
     void* pClipC = (void*)GetProcAddress(GetModuleHandleA("user32.dll"), "ClipCursor");
-    void* pGASKS = (void*)GetProcAddress(GetModuleHandleA("user32.dll"), "GetAsyncKeyState");
-    void* pGKS = (void*)GetProcAddress(GetModuleHandleA("user32.dll"), "GetKeyState");
     
     // Create hooks
     if (pPres) MH_CreateHook(pPres, (LPVOID)Hook::hkPresent, (LPVOID*)&Hook::oPresent);
     if (pRes) MH_CreateHook(pRes, (LPVOID)Hook::hkResizeBuffers, (LPVOID*)&Hook::oResizeBuffers);
     if (pSetCP) MH_CreateHook(pSetCP, (LPVOID)Hook::hkSetCursorPos, (LPVOID*)&Hook::oSetCursorPos);
     if (pClipC) MH_CreateHook(pClipC, (LPVOID)Hook::hkClipCursor, (LPVOID*)&Hook::oClipCursor);
-    if (pGASKS) MH_CreateHook(pGASKS, (LPVOID)Hook::hkGetAsyncKeyState, (LPVOID*)&Hook::oGetAsyncKeyState);
-    if (pGKS) MH_CreateHook(pGKS, (LPVOID)Hook::hkGetKeyState, (LPVOID*)&Hook::oGetKeyState);
     
     // Enable all hooks
     MH_EnableHook(MH_ALL_HOOKS);
@@ -174,6 +182,10 @@ HRESULT STDMETHODCALLTYPE Hook::hkResizeBuffers(IDXGISwapChain* pSwapChain, UINT
     extern float g_lastW, g_lastH;
     g_lastW = 0;
     g_lastH = 0;
+
+    // Force allow tearing for UWP FPS unlock (0x800 = DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING)
+    SwapChainFlags |= 0x800;
+
     return Hook::oResizeBuffers(pSwapChain, BufferCount, Width, Height, NewFormat, SwapChainFlags);
 }
 
@@ -185,23 +197,6 @@ BOOL WINAPI Hook::hkSetCursorPos(int x, int y) {
 BOOL WINAPI Hook::hkClipCursor(const RECT* lpRect) {
     if (g_showMenu) return Hook::oClipCursor(NULL);
     return Hook::oClipCursor(lpRect);
-}
-
-SHORT WINAPI Hook::hkGetAsyncKeyState(int vKey) {
-    if (g_showMenu) {
-        // Allow the toggle key to pass through so we can close the menu
-        if (vKey == VK_RSHIFT) return Hook::oGetAsyncKeyState(vKey);
-        return 0; // Block all other keys from the game
-    }
-    return Hook::oGetAsyncKeyState(vKey);
-}
-
-SHORT WINAPI Hook::hkGetKeyState(int vKey) {
-    if (g_showMenu) {
-        if (vKey == VK_RSHIFT) return Hook::oGetKeyState(vKey);
-        return 0; // Block all other keys from the game
-    }
-    return Hook::oGetKeyState(vKey);
 }
 
 void Hook::Shutdown() {
@@ -228,18 +223,6 @@ void Hook::Shutdown() {
         MH_DisableHook(oClipCursor);
         MH_RemoveHook(oClipCursor);
         oClipCursor = NULL;
-    }
-
-    if (oGetAsyncKeyState) {
-        MH_DisableHook(oGetAsyncKeyState);
-        MH_RemoveHook(oGetAsyncKeyState);
-        oGetAsyncKeyState = NULL;
-    }
-
-    if (oGetKeyState) {
-        MH_DisableHook(oGetKeyState);
-        MH_RemoveHook(oGetKeyState);
-        oGetKeyState = NULL;
     }
 
     // Finalmente apagar MinHook

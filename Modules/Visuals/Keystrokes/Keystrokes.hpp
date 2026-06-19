@@ -56,7 +56,10 @@ public:
     static std::string g_keystrokesLMBCPSText;
     static std::string g_keystrokesRMBCPSText;
 
+    static bool g_keystrokesFollowTheme;
+
     // Keystrokes colors
+    static float g_keystrokesOpacity;
     static ImVec4 g_keystrokesBgColor;
     static ImVec4 g_keystrokesEnabledColor;
     static ImVec4 g_keystrokesTextColor;

@@ -1,5 +1,6 @@
 #include "Input.hpp"
 
+
 // Static member definitions
 bool Input::g_keys[256] = {};
 bool Input::g_keysPressed[256] = {};
@@ -122,7 +123,7 @@ void Input::UpdateMouse(HWND window, float screenWidth, float screenHeight, bool
     POINT p;
     GetCursorPos(&p);
     ScreenToClient(window, &p);
-    io.MousePos = ImVec2((float)p.x, (float)p.y);
+    io.AddMousePosEvent((float)p.x, (float)p.y);
 
     // Mouse buttons - direct clean read
     g_prevLmbPressed = g_lmbPressed;
@@ -131,9 +132,9 @@ void Input::UpdateMouse(HWND window, float screenWidth, float screenHeight, bool
     g_lmbPressed = (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
     g_rmbPressed = (GetAsyncKeyState(VK_RBUTTON) & 0x8000) != 0;
     
-    io.MouseDown[0] = g_lmbPressed;
-    io.MouseDown[1] = g_rmbPressed;
-    io.MouseDown[2] = (GetAsyncKeyState(VK_MBUTTON) & 0x8000) != 0;
+    io.AddMouseButtonEvent(0, g_lmbPressed);
+    io.AddMouseButtonEvent(1, g_rmbPressed);
+    io.AddMouseButtonEvent(2, (GetAsyncKeyState(VK_MBUTTON) & 0x8000) != 0);
 
     // ImGui cursor ONLY drawn when menu open
     io.MouseDrawCursor = drawCursor;

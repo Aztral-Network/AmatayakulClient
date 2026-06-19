@@ -5,6 +5,8 @@
 #include "Visuals/CPSCounter/CPSCounter.hpp"
 #include "Visuals/FPSCounter/FPSCounter.hpp"
 #include "Visuals/MotionBlur/MotionBlur.hpp"
+#include "Movement/AutoSprint/AutoSprint.hpp"
 #include "Misc/UnlockFPS/UnlockFPS.hpp"
 #include "Info/Info.hpp"
+#include "Terminal/Terminal.hpp"
 #include "../Utils/HudElement.hpp"

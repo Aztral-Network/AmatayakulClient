@@ -27,6 +27,16 @@ public:
     static bool g_fpsFirstRender;
     static HudElement* g_fpsHud;
 
+    // FPS Overlay enhancements
+    static bool g_showBackground;
+    static float g_bgOpacity;
+    static bool g_showShadow;
+    static float g_shadowSpread;
+    static float g_shadowBlur;
+    static bool g_showTextShadow;
+    static float g_textShadowOffset;
+    static ImVec4 g_accentColor;
+
     /// @brief Initialize FPS Counter with HudElement reference
     static void Initialize(HudElement* hud);
 

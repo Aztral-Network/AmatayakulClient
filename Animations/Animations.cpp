@@ -39,6 +39,20 @@ float Animations::EaseOutExpo(float t) {
     return t == 1.0f ? 1.0f : 1.0f - std::powf(2.0f, -10.0f * t);
 }
 
+float Animations::EaseInQuart(float t) {
+    return t * t * t * t;
+}
+
+float Animations::EaseOutQuart(float t) {
+    return 1.0f - std::powf(1.0f - t, 4.0f);
+}
+
+float Animations::EaseOutBack(float t) {
+    const float c1 = 1.70158f;
+    const float c3 = c1 + 1.0f;
+    return 1.0f + c3 * std::powf(t - 1.0f, 3.0f) + c1 * std::powf(t - 1.0f, 2.0f);
+}
+
 float Animations::EaseInOutElastic(float t) {
     // Elastic bounce effect
     const float c5 = (2.0f * 3.14159265f) / 4.5f;
@@ -65,4 +79,8 @@ float Animations::GetProgress(float elapsed, float duration) {
 float Animations::Clamp01(float value) {
     // Clamp value between 0 and 1
     return std::max(0.0f, std::min(value, 1.0f));
+}
+
+float Animations::Approach(float current, float target, float dt, float speed) {
+    return current + (target - current) * (1.0f - std::expf(-speed * dt));
 }

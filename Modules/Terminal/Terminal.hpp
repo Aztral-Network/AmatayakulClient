@@ -30,8 +30,13 @@ private:
     static bool scrollToBottom;
     static std::string configDir;
 
+    // Command History
+    static std::vector<std::string> commandHistory;
+    static int historyIndex;
+
     // Helper functions
     static void ShowHelp();
+    static void RenderColoredText(const std::string& text);
     static nlohmann::json CollectCurrentConfig();
     static void ApplyConfig(const nlohmann::json& config);
     static void RenderUnloadDialog();
