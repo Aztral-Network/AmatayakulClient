@@ -61,8 +61,8 @@ bool Terminal::OpenConfigDirectory() {
 
 void Terminal::Initialize() {
     ConfigManager::Initialize();
-    AddOutput("\x1B[35m[Azyre]\x1B[0m Terminal initialized. Type \x1B[33m.help\x1B[0m for commands.");
-    AddOutput("\x1B[90mAll configs saved in LocalState\\Aegle\\ directory.\x1B[0m");
+    AddOutput("\x1B[35m[Amatayakul]\x1B[0m Terminal initialized. Type \x1B[33m.help\x1B[0m for commands.");
+    AddOutput("\x1B[90mAll configs saved in LocalState\\KittyClient\\ directory.\x1B[0m");
 }
 
 void Terminal::RenderConsole() {
@@ -95,7 +95,7 @@ void Terminal::RenderConsole() {
         dl->AddCircleFilled(ImVec2(p0.x + 44.0f, cy), 4.5f, IM_COL32(80, 210, 120, 210));
 
         ImGui::SetCursorPos(ImVec2(60.0f, 8.0f));
-        ImGui::TextColored(ImVec4(0.55f, 0.55f, 0.65f, 1.0f), "AZYRE");
+        ImGui::TextColored(ImVec4(0.55f, 0.55f, 0.65f, 1.0f), "KITTY");
         ImGui::SameLine(0, 0);
         ImGui::TextColored(accent, "TERMINAL");
         ImGui::SameLine(0, 10);
@@ -434,7 +434,7 @@ void Terminal::RenderUnloadDialog() {
 
         // ---------- Body ----------
         ImGui::PushTextWrapPos(352.0f);
-        ImGui::TextColored(titleText, "Are you sure you want to unload Azyre?");
+        ImGui::TextColored(titleText, "Are you sure you want to unload Amatayakul?");
         ImGui::Spacing();
         ImGui::TextColored(bodyText, "This will disable every module, hotkey and override while the DLL is unloaded from the game.");
         ImGui::Spacing();

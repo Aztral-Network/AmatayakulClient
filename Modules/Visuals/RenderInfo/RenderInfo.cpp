@@ -85,8 +85,9 @@ void RenderInfo::RenderWindow() {
         float easedAnim = Animations::EaseOutExpo(g_renderInfoAnim);
         float infoAlpha = 0.7f * easedAnim;
         
-        // Render info dimensions
-        ImVec2 renderInfoSize = ImVec2(220, 150);
+        // Render info dimensions (apply user scale)
+        ImVec2 naturalSize = ImVec2(220, 150);
+        ImVec2 renderInfoSize = ImVec2(naturalSize.x * g_renderInfoHud->scale, naturalSize.y * g_renderInfoHud->scale);
         g_renderInfoHud->size = renderInfoSize;
         
         // Initialize position on first draw
@@ -162,18 +163,10 @@ void RenderInfo::RenderWindow() {
         }
         ImGui::PopFont();
         
-        // DEBUG: show hitbox only when menu is open
         if (GUI::IsHudEditable()) {
             ImDrawList* debugDraw = ImGui::GetForegroundDrawList();
             if (debugDraw) {
-                debugDraw->AddRect(
-                    finalPos,
-                    ImVec2(finalPos.x + renderInfoSize.x, finalPos.y + renderInfoSize.y),
-                    IM_COL32(0, 255, 100, 200),
-                    0.0f,
-                    0,
-                    2.0f
-                );
+                g_renderInfoHud->RenderHudEditor(debugDraw);
             }
         }
     }

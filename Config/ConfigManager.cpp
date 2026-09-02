@@ -23,6 +23,7 @@ Under an4rch Development Public Source License 1.0
 #include <ctime>
 
 std::string ConfigManager::configDir;
+std::string ConfigManager::currentConfig;
 
 static bool EnsureDirectoryExists(const std::string& directoryPath) {
     try {
@@ -52,13 +53,13 @@ void ConfigManager::Initialize() {
                 "Packages" /
                 "Microsoft.MinecraftUWP_8wekyb3d8bbwe" /
                 "LocalState" /
-                "Aegle";
+                "KittyClient";
         } else {
-            baseDir = std::filesystem::current_path() / "Aegle";
+            baseDir = std::filesystem::current_path() / "KittyClient";
         }
 
         if (!EnsureDirectoryExists(baseDir.string())) {
-            baseDir = std::filesystem::current_path() / "Aegle";
+            baseDir = std::filesystem::current_path() / "KittyClient";
             EnsureDirectoryExists(baseDir.string());
         }
 
@@ -67,10 +68,42 @@ void ConfigManager::Initialize() {
             configDir += "\\";
         }
     } catch (...) {
-        configDir = (std::filesystem::current_path() / "configs").string();
+        configDir = (std::filesystem::current_path() / "KittyClient").string();
         EnsureDirectoryExists(configDir);
         if (!configDir.empty() && configDir.back() != '\\' && configDir.back() != '/') {
             configDir += "\\";
+        }
+    }
+
+    // Always ensure a "Default" config exists
+    {
+        std::filesystem::path defaultPath = std::filesystem::path(configDir) / "Default.json";
+        if (!std::filesystem::exists(defaultPath)) {
+            // Save current (zeroed) state as the default
+            nlohmann::json def = CollectCurrentConfig();
+            std::ofstream f(defaultPath, std::ios::out | std::ios::trunc);
+            if (f.is_open()) f << def.dump(4);
+        }
+    }
+
+    // Restore the last-used config, falling back to "Default"
+    {
+        std::string last = LoadCurrentFile();
+        if (last.empty()) last = "Default";
+        std::filesystem::path lastPath = std::filesystem::path(configDir) / (last + ".json");
+        if (std::filesystem::exists(lastPath)) {
+            currentConfig = last;
+            std::ifstream f(lastPath);
+            if (f.is_open()) {
+                try {
+                    nlohmann::json cfg;
+                    f >> cfg;
+                    ApplyConfig(cfg);
+                    ReloadModulesAfterConfig();
+                } catch (...) {}
+            }
+        } else {
+            currentConfig = "Default";
         }
     }
 }
@@ -128,6 +161,8 @@ bool ConfigManager::LoadConfig(const std::string& name) {
             file >> config;
             ApplyConfig(config);
             ReloadModulesAfterConfig();
+            currentConfig = name;
+            SaveCurrentFile();
             Terminal::AddOutput("Config loaded successfully");
             return true;
         } else {
@@ -205,20 +240,18 @@ bool ConfigManager::OpenConfigDirectory() {
 nlohmann::json ConfigManager::CollectCurrentConfig() {
     nlohmann::json config;
 
-    // Combat modules
-    config["Combat"]["Hitbox"]["enabled"] = Hitbox::g_hitboxEnabled;
-    config["Combat"]["Hitbox"]["value"] = Hitbox::g_hitboxValue;
-
-    config["Combat"]["Reach"]["enabled"] = Reach::IsEnabled();
-    config["Combat"]["Reach"]["value"] = Reach::g_reachValue;
-
     // Movement modules
     config["Movement"]["AutoSprint"]["enabled"] = AutoSprint::g_autoSprintEnabled;
-    config["Movement"]["Glide"]["enabled"] = Glide::g_glideEnabled;
-    config["Movement"]["Glide"]["speed"] = Glide::g_glideSpeed;
-    config["Movement"]["Fly"]["enabled"] = Fly::g_flyEnabled;
-    config["Movement"]["Timer"]["enabled"] = Timer::g_timerEnabled;
-    config["Movement"]["Timer"]["value"] = Timer::g_timerValue;
+    config["Movement"]["AutoSprint"]["showSprintText"] = AutoSprint::g_showSprintText;
+    config["Movement"]["AutoSprint"]["sprintTextScale"] = AutoSprint::g_sprintTextScale;
+    config["Movement"]["AutoSprint"]["sprintTextMode"] = AutoSprint::g_sprintTextMode;
+    config["Movement"]["AutoSprint"]["sprintTextShadow"] = AutoSprint::g_sprintTextShadow;
+    config["Movement"]["AutoSprint"]["sprintTextColor"] = nlohmann::json::array({AutoSprint::g_sprintTextColor.x, AutoSprint::g_sprintTextColor.y, AutoSprint::g_sprintTextColor.z, AutoSprint::g_sprintTextColor.w});
+    if (AutoSprint::g_sprintTextHud) {
+        config["Movement"]["AutoSprint"]["position"]["x"] = AutoSprint::g_sprintTextHud->pos.x;
+        config["Movement"]["AutoSprint"]["position"]["y"] = AutoSprint::g_sprintTextHud->pos.y;
+        config["Movement"]["AutoSprint"]["scale"] = AutoSprint::g_sprintTextHud->scale;
+    }
 
     // Visuals modules
     config["Visuals"]["FullBright"]["enabled"] = FullBright::g_fullBrightEnabled;
@@ -468,12 +501,6 @@ nlohmann::json ConfigManager::CollectCurrentConfig() {
     config["Misc"]["UnlockFPS"]["fpsLimit"] = UnlockFPS::g_fpsLimit;
     config["Misc"]["UnlockFPS"]["lowLatency"] = UnlockFPS::g_lowLatency;
 
-    config["Misc"]["AutoClicker"]["enabled"] = AutoClicker::g_enabled;
-    config["Misc"]["AutoClicker"]["cps"] = AutoClicker::g_cps;
-    config["Misc"]["AutoClicker"]["randomRange"] = AutoClicker::g_randomRange;
-    config["Misc"]["AutoClicker"]["rightClick"] = AutoClicker::g_rightClick;
-    config["Misc"]["AutoClicker"]["holdMode"] = AutoClicker::g_holdMode;
-
     config["Misc"]["AntiAFK"]["enabled"] = AntiAFK::g_enabled;
     config["Misc"]["AntiAFK"]["intervalSecs"] = AntiAFK::g_intervalSecs;
     config["Misc"]["AntiAFK"]["pressDurationMs"] = AntiAFK::g_pressDurationMs;
@@ -487,6 +514,7 @@ nlohmann::json ConfigManager::CollectCurrentConfig() {
 
     // ClickGUI settings
     config["Visuals"]["ClickGUI"]["enabled"] = ClickGUI::g_enabled;
+    config["Visuals"]["ClickGUI"]["bindKey"] = ClickGUI::g_bindKey;
     config["Visuals"]["ClickGUI"]["guiStyle"] = ClickGUI::g_guiStyle;
     config["Visuals"]["ClickGUI"]["showParticles"] = ClickGUI::g_showParticles;
     config["Visuals"]["ClickGUI"]["showRiseBackground"] = ClickGUI::g_showRiseBackground;
@@ -503,56 +531,34 @@ nlohmann::json ConfigManager::CollectCurrentConfig() {
 }
 
 void ConfigManager::ApplyConfig(const nlohmann::json& config) {
-    // Combat modules
-    if (config.contains("Combat")) {
-        if (config["Combat"].contains("Hitbox")) {
-            if (config["Combat"]["Hitbox"].contains("enabled")) {
-                Hitbox::g_hitboxEnabled = config["Combat"]["Hitbox"]["enabled"];
-            }
-            if (config["Combat"]["Hitbox"].contains("value")) {
-                Hitbox::g_hitboxValue = config["Combat"]["Hitbox"]["value"];
-            }
-        }
-        if (config["Combat"].contains("Reach")) {
-            if (config["Combat"]["Reach"].contains("enabled")) {
-                Reach::SetEnabled(config["Combat"]["Reach"]["enabled"]);
-            }
-            if (config["Combat"]["Reach"].contains("value")) {
-                if (Reach::IsEnabled()) {
-                    Reach::UpdateValue(config["Combat"]["Reach"]["value"]);
-                } else {
-                    Reach::g_reachValue = 3.0f;
-                }
-            }
-        }
-    }
-
     // Movement modules
     if (config.contains("Movement")) {
         if (config["Movement"].contains("AutoSprint")) {
             if (config["Movement"]["AutoSprint"].contains("enabled")) {
                 AutoSprint::g_autoSprintEnabled = config["Movement"]["AutoSprint"]["enabled"];
             }
-        }
-        if (config["Movement"].contains("Glide")) {
-            if (config["Movement"]["Glide"].contains("enabled")) {
-                Glide::g_glideEnabled = config["Movement"]["Glide"]["enabled"];
+            if (config["Movement"]["AutoSprint"].contains("showSprintText")) {
+                AutoSprint::g_showSprintText = config["Movement"]["AutoSprint"]["showSprintText"];
             }
-            if (config["Movement"]["Glide"].contains("speed")) {
-                Glide::g_glideSpeed = config["Movement"]["Glide"]["speed"];
+            if (config["Movement"]["AutoSprint"].contains("sprintTextScale")) {
+                AutoSprint::g_sprintTextScale = config["Movement"]["AutoSprint"]["sprintTextScale"];
             }
-        }
-        if (config["Movement"].contains("Fly")) {
-            if (config["Movement"]["Fly"].contains("enabled")) {
-                Fly::g_flyEnabled = config["Movement"]["Fly"]["enabled"];
+            if (config["Movement"]["AutoSprint"].contains("sprintTextMode")) {
+                AutoSprint::g_sprintTextMode = config["Movement"]["AutoSprint"]["sprintTextMode"];
             }
-        }
-        if (config["Movement"].contains("Timer")) {
-            if (config["Movement"]["Timer"].contains("enabled")) {
-                Timer::g_timerEnabled = config["Movement"]["Timer"]["enabled"];
+            if (config["Movement"]["AutoSprint"].contains("sprintTextShadow")) {
+                AutoSprint::g_sprintTextShadow = config["Movement"]["AutoSprint"]["sprintTextShadow"];
             }
-            if (config["Movement"]["Timer"].contains("value")) {
-                Timer::g_timerValue = config["Movement"]["Timer"]["value"];
+            if (config["Movement"]["AutoSprint"].contains("sprintTextColor") && config["Movement"]["AutoSprint"]["sprintTextColor"].size() == 4) {
+                auto& c = config["Movement"]["AutoSprint"]["sprintTextColor"];
+                AutoSprint::g_sprintTextColor = ImVec4(c[0], c[1], c[2], c[3]);
+            }
+            if (config["Movement"]["AutoSprint"].contains("position") && AutoSprint::g_sprintTextHud) {
+                AutoSprint::g_sprintTextHud->pos.x = config["Movement"]["AutoSprint"]["position"]["x"];
+                AutoSprint::g_sprintTextHud->pos.y = config["Movement"]["AutoSprint"]["position"]["y"];
+            }
+            if (config["Movement"]["AutoSprint"].contains("scale") && AutoSprint::g_sprintTextHud) {
+                AutoSprint::g_sprintTextHud->scale = config["Movement"]["AutoSprint"]["scale"];
             }
         }
     }
@@ -901,6 +907,7 @@ void ConfigManager::ApplyConfig(const nlohmann::json& config) {
                 g_showMenu = ClickGUI::g_enabled;
                 ::GUI::g_showMenu = g_showMenu;
             }
+            if (cg.contains("bindKey")) ClickGUI::g_bindKey = cg["bindKey"];
             if (cg.contains("guiStyle")) ClickGUI::g_guiStyle = cg["guiStyle"];
             if (cg.contains("showParticles")) ClickGUI::g_showParticles = cg["showParticles"];
             if (cg.contains("showRiseBackground")) ClickGUI::g_showRiseBackground = cg["showRiseBackground"];
@@ -926,14 +933,6 @@ void ConfigManager::ApplyConfig(const nlohmann::json& config) {
                 UnlockFPS::g_lowLatency = misc["UnlockFPS"]["lowLatency"];
             }
         }
-        if (misc.contains("AutoClicker")) {
-            auto& ac = misc["AutoClicker"];
-            if (ac.contains("enabled")) AutoClicker::g_enabled = ac["enabled"];
-            if (ac.contains("cps")) AutoClicker::g_cps = ac["cps"];
-            if (ac.contains("randomRange")) AutoClicker::g_randomRange = ac["randomRange"];
-            if (ac.contains("rightClick")) AutoClicker::g_rightClick = ac["rightClick"];
-            if (ac.contains("holdMode")) AutoClicker::g_holdMode = ac["holdMode"];
-        }
         if (misc.contains("AntiAFK")) {
             auto& afk = misc["AntiAFK"];
             if (afk.contains("enabled")) AntiAFK::g_enabled = afk["enabled"];
@@ -956,28 +955,10 @@ void ConfigManager::ApplyConfig(const nlohmann::json& config) {
 
 void ConfigManager::ReloadModulesAfterConfig() {
     // Re-enable or disable modules based on their saved state
-    if (Hitbox::g_hitboxEnabled) {
-        Hitbox::Enable();
-    } else {
-        Hitbox::Disable();
-    }
-    
     if (AutoSprint::g_autoSprintEnabled) {
         AutoSprint::Enable();
     } else {
         AutoSprint::Disable();
-    }
-
-    if (Glide::g_glideEnabled) {
-        Glide::Enable();
-    } else {
-        Glide::Disable();
-    }
-
-    if (Fly::g_flyEnabled) {
-        Fly::Enable();
-    } else {
-        Fly::Disable();
     }
 
     if (FullBright::g_fullBrightEnabled) {
@@ -986,17 +967,52 @@ void ConfigManager::ReloadModulesAfterConfig() {
         FullBright::Disable();
     }
 
-    if (Reach::IsEnabled()) {
-        Reach::SetEnabled(true);
-    } else {
-        Reach::SetEnabled(false);
-    }
-
-    if (Timer::g_timerEnabled) {
-        Timer::Enable();
-    } else {
-        Timer::Disable();
-    }
-
     Terminal::AddOutput("Modules reloaded after config load.");
+}
+
+// ---------------------------------------------------------------------------
+// Persistence helpers
+// ---------------------------------------------------------------------------
+
+void ConfigManager::SaveCurrentFile() {
+    // Writes the name of the currently active config to current.txt
+    try {
+        if (configDir.empty() || currentConfig.empty()) return;
+        std::filesystem::path p = std::filesystem::path(configDir) / "current.txt";
+        std::ofstream f(p, std::ios::out | std::ios::trunc);
+        if (f.is_open()) f << currentConfig;
+    } catch (...) {}
+}
+
+std::string ConfigManager::LoadCurrentFile() {
+    // Reads the last config name from current.txt, returns empty on failure
+    try {
+        if (configDir.empty()) return "";
+        std::filesystem::path p = std::filesystem::path(configDir) / "current.txt";
+        std::ifstream f(p);
+        if (!f.is_open()) return "";
+        std::string name;
+        std::getline(f, name);
+        // Trim whitespace
+        while (!name.empty() && (name.back() == '\r' || name.back() == '\n' || name.back() == ' '))
+            name.pop_back();
+        return name;
+    } catch (...) { return ""; }
+}
+
+bool ConfigManager::AutoSave() {
+    // Silently saves the current settings back into the currently loaded config.
+    // Returns false if no config is active or the save fails.
+    if (currentConfig.empty()) return false;
+    try {
+        if (configDir.empty()) return false;
+        nlohmann::json config = CollectCurrentConfig();
+        std::filesystem::path filepath = std::filesystem::path(configDir) / (currentConfig + ".json");
+        std::ofstream file(filepath, std::ios::out | std::ios::trunc);
+        if (file.is_open()) {
+            file << config.dump(4);
+            return true;
+        }
+    } catch (...) {}
+    return false;
 }

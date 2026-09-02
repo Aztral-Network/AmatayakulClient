@@ -48,6 +48,12 @@ extern char g_notifMessage[128];
 ImTextureID Info::g_logoTexture = 0;
 int Info::g_logoWidth = 0;
 int Info::g_logoHeight = 0;
+ImTextureID Info::g_discordIcon = 0;
+int Info::g_discordIconW = 0;
+int Info::g_discordIconH = 0;
+ImTextureID Info::g_githubIcon = 0;
+int Info::g_githubIconW = 0;
+int Info::g_githubIconH = 0;
 uint8_t* Info::g_audioData = nullptr;
 uint32_t Info::g_audioDataSize = 0;
 
@@ -76,11 +82,16 @@ static uint32_t g_audioSizes[NUM_CLICK_SOUNDS] = {0};
 static bool g_soundsLoaded = false;
 static unsigned int g_soundCount = 0;
 
+// Forward declaration
+static void LoadIconFromResource(int resourceID, ImTextureID* outTex, int* outW = nullptr, int* outH = nullptr);
+
 void Info::Initialize() {
     if (g_audioEngineInitialized) return;
     
     LoadLogoFromResource();
     LoadAudioFromResource();
+    LoadIconFromResource(IDR_ICON_DISCORD, &g_discordIcon, &g_discordIconW, &g_discordIconH);
+    LoadIconFromResource(IDR_ICON_GITHUB, &g_githubIcon, &g_githubIconW, &g_githubIconH);
     
     // Initialize miniaudio engine
     if (ma_engine_init(NULL, &g_audioEngine) == MA_SUCCESS) {
@@ -115,10 +126,12 @@ void Info::Shutdown() {
         }
     }
     
-    if (g_logoTexture != 0) {
-        reinterpret_cast<ID3D11ShaderResourceView*>(g_logoTexture)->Release();
-        g_logoTexture = 0;
-    }
+    auto ReleaseTex = [](ImTextureID& tex) {
+        if (tex != 0) { reinterpret_cast<ID3D11ShaderResourceView*>(tex)->Release(); tex = 0; }
+    };
+    ReleaseTex(g_logoTexture);
+    ReleaseTex(g_discordIcon);
+    ReleaseTex(g_githubIcon);
 }
 
 void Info::OnFocusGained() {
@@ -130,9 +143,9 @@ void Info::OnFocusGained() {
 
 bool Info::LoadLogoFromResource() {
     // Find the resource using the module handle
-    HRSRC hRes = FindResource(g_hModule, MAKEINTRESOURCE(IDR_INFO_IMAGE), RT_RCDATA);
+    HRSRC hRes = FindResource(g_hModule, MAKEINTRESOURCE(IDR_ICON_LOGO), RT_RCDATA);
     if (!hRes) {
-        OutputDebugStringA("INFO: FindResource failed for IDR_INFO_IMAGE\n");
+        OutputDebugStringA("INFO: FindResource failed for IDR_ICON_LOGO\n");
         return false;
     }
     
@@ -162,6 +175,53 @@ bool Info::LoadLogoFromResource() {
     return g_logoTexture != 0;
 }
 
+static void LoadIconFromResource(int resourceID, ImTextureID* outTex, int* outW, int* outH) {
+    if (!pDevice || !outTex) return;
+    HRSRC hRes = FindResource(g_hModule, MAKEINTRESOURCE(resourceID), RT_RCDATA);
+    if (!hRes) return;
+    HGLOBAL hGlobal = LoadResource(g_hModule, hRes);
+    if (!hGlobal) return;
+    DWORD dwSize = SizeofResource(g_hModule, hRes);
+    if (dwSize == 0) return;
+    void* pData = LockResource(hGlobal);
+    if (!pData) return;
+
+    int w, h, ch;
+    unsigned char* img = stbi_load_from_memory((const unsigned char*)pData, (int)dwSize, &w, &h, &ch, 4);
+    if (!img) return;
+
+    D3D11_TEXTURE2D_DESC desc = {};
+    desc.Width = w;
+    desc.Height = h;
+    desc.MipLevels = 1;
+    desc.ArraySize = 1;
+    desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    desc.SampleDesc.Count = 1;
+    desc.Usage = D3D11_USAGE_DEFAULT;
+    desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+
+    D3D11_SUBRESOURCE_DATA sub = {};
+    sub.pSysMem = img;
+    sub.SysMemPitch = w * 4;
+
+    ID3D11Texture2D* tex = nullptr;
+    if (FAILED(pDevice->CreateTexture2D(&desc, &sub, &tex))) { stbi_image_free(img); return; }
+
+    D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+    srvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+    srvDesc.Texture2D.MostDetailedMip = 0;
+    srvDesc.Texture2D.MipLevels = 1;
+
+    ID3D11ShaderResourceView* srv = nullptr;
+    HRESULT hr = pDevice->CreateShaderResourceView(tex, &srvDesc, &srv);
+    tex->Release();
+    stbi_image_free(img);
+    if (FAILED(hr) || !srv) return;
+    *outTex = reinterpret_cast<ImTextureID>(srv);
+    if (outW) *outW = w;
+    if (outH) *outH = h;
+}
 ImTextureID Info::LoadTextureFromMemory(const unsigned char* data, int size) {
     // Load image from memory using stb_image
     int width, height, channels;
@@ -556,382 +616,119 @@ void Info::FetchLatestRelease() {
         return 0;
     }, nullptr, 0, nullptr);
 }
-
-// ── Info Dashboard UI ──────────────────────────────────────────────────────
-
-struct UpdateEntry {
-    const char* version;
-    const char* desc;
-    bool isLatest;
-};
-
-static const UpdateEntry kUpdateHistory[] = {
-    { "v1.0.8", "Stable Release | Added new module configs", true },
-    { "v1.0.7", "Stable Release | Migration to MSVC", false },
-    { "v1.0.6", "Stable Release | Config Market Added", false },
-    { "v1.0.5", "Stable Release | IRC Chat added", false },
-    { "v1.0.4", "Stable Release", false },
-};
-
-static ImVec2 DrawVersionBadge(ImDrawList* draw, ImFont* font, float fontPx, ImVec2 pos, const char* text, const ImVec4& accent) {
-    ImVec2 textSize = font->CalcTextSizeA(fontPx, FLT_MAX, 0.0f, text);
-    float padX = 9.0f, padY = 2.5f;
-    ImVec2 size(textSize.x + padX * 2.0f, textSize.y + padY * 2.0f);
-    draw->AddRectFilled(pos, ImVec2(pos.x + size.x, pos.y + size.y), ImColor(accent.x, accent.y, accent.z, 0.16f), 4.0f);
-    draw->AddRect(pos, ImVec2(pos.x + size.x, pos.y + size.y), ImColor(accent.x, accent.y, accent.z, 0.55f), 4.0f, 0, 1.0f);
-    draw->AddText(font, fontPx, ImVec2(pos.x + padX, pos.y + padY), ImColor(accent.x, accent.y, accent.z, 1.0f), text);
-    return size;
-}
-
-static void RenderProfileCard() {
-    const ImVec4 accent = GUI::g_colorAccent;
-    ImFont* fontH3 = GUI::g_fontH3 ? GUI::g_fontH3 : ImGui::GetIO().Fonts->Fonts[0];
-    ImFont* fontH2 = GUI::g_fontH2 ? GUI::g_fontH2 : ImGui::GetIO().Fonts->Fonts[0];
-    ImDrawList* draw = ImGui::GetWindowDrawList();
-    ImVec2 winPos = ImGui::GetWindowPos();
-    float winW = ImGui::GetWindowWidth();
-
-    // Header
-    ImGui::SetCursorPos(ImVec2(14, 10));
-    ImGui::PushFont(fontH3);
-    ImGui::PushStyleColor(ImGuiCol_Text, accent);
-    ImGui::Text("USER PROFILE");
-    ImGui::PopStyleColor();
-    ImGui::PopFont();
-
-    // MEMBER pill (top right)
-    const char* pill = "MEMBER";
-    ImVec2 pillTextSize = fontH3->CalcTextSizeA(12.0f, FLT_MAX, 0.0f, pill);
-    ImVec2 pillPos(winPos.x + winW - pillTextSize.x - 26.0f, winPos.y + 9.0f);
-    ImVec2 pillSize(pillTextSize.x + 18.0f, pillTextSize.y + 8.0f);
-    draw->AddRectFilled(pillPos, ImVec2(pillPos.x + pillSize.x, pillPos.y + pillSize.y), ImColor(accent.x, accent.y, accent.z, 0.16f), 10.0f);
-    draw->AddRect(pillPos, ImVec2(pillPos.x + pillSize.x, pillPos.y + pillSize.y), ImColor(accent.x, accent.y, accent.z, 0.55f), 10.0f, 0, 1.0f);
-    draw->AddText(fontH3, 12.0f, ImVec2(pillPos.x + 9.0f, pillPos.y + 4.0f), ImColor(accent.x, accent.y, accent.z, 1.0f), pill);
-
-    // Divider
-    float divY = winPos.y + 38.0f;
-    draw->AddLine(ImVec2(winPos.x + 14.0f, divY), ImVec2(winPos.x + winW - 14.0f, divY), ImColor(1.0f, 1.0f, 1.0f, 0.10f), 1.0f);
-
-    // Avatar
-    ImVec2 avatarCenter(winPos.x + 46.0f, winPos.y + 79.0f);
-    float avatarR = 24.0f;
-    draw->AddCircleFilled(avatarCenter, avatarR, ImColor(accent.x, accent.y, accent.z, 0.18f), 48);
-    draw->AddCircle(avatarCenter, avatarR, ImColor(accent.x, accent.y, accent.z, 0.65f), 48, 1.6f);
-
-    char* user = getenv("USERNAME");
-    const char* name = (user && user[0]) ? user : "Unknown";
-    char initBuf[2] = { name[0], '\0' };
-    ImVec2 initSize = fontH2->CalcTextSizeA(26.0f, FLT_MAX, 0.0f, initBuf);
-    draw->AddText(fontH2, 26.0f, ImVec2(avatarCenter.x - initSize.x * 0.5f, avatarCenter.y - initSize.y * 0.5f), ImColor(accent.x, accent.y, accent.z, 1.0f), initBuf);
-
-    // Name + tagline
-    float textX = winPos.x + 82.0f;
-    ImGui::SetCursorScreenPos(ImVec2(textX, divY + 14.0f));
-    ImGui::PushFont(fontH3);
-    ImGui::Text("%s", name);
-    ImGui::PopFont();
-    ImGui::SetCursorScreenPos(ImVec2(textX, divY + 38.0f));
-    ImGui::TextDisabled("by an4rch development");
-}
-
-static void RenderStatsCard() {
-    const ImVec4 accent = GUI::g_colorAccent;
-    ImFont* fontH3 = GUI::g_fontH3 ? GUI::g_fontH3 : ImGui::GetIO().Fonts->Fonts[0];
-    ImDrawList* draw = ImGui::GetWindowDrawList();
-    ImVec2 winPos = ImGui::GetWindowPos();
-    float winW = ImGui::GetWindowWidth();
-
-    ImGui::SetCursorPos(ImVec2(14, 10));
-    ImGui::PushFont(fontH3);
-    ImGui::PushStyleColor(ImGuiCol_Text, accent);
-    ImGui::Text("SYSTEM STATUS");
-    ImGui::PopStyleColor();
-    ImGui::PopFont();
-
-    float divY = winPos.y + 38.0f;
-    draw->AddLine(ImVec2(winPos.x + 14.0f, divY), ImVec2(winPos.x + winW - 14.0f, divY), ImColor(1.0f, 1.0f, 1.0f, 0.10f), 1.0f);
-
-    float x = winPos.x + 14.0f;
-    float labelW = 92.0f;
-    float barW = winW - labelW - 28.0f;
-    float row = divY + 8.0f;
-
-    // FPS
-    float fps = RenderInfo::g_fpsCounter;
-    ImVec4 fpsCol = fps >= 60.0f ? ImVec4(0.4f, 1.0f, 0.4f, 1.0f)
-                 : (fps >= 30.0f ? ImVec4(1.0f, 0.85f, 0.3f, 1.0f) : ImVec4(1.0f, 0.4f, 0.35f, 1.0f));
-    ImGui::SetCursorScreenPos(ImVec2(x, row));
-    ImGui::Text("Client FPS");
-    ImGui::SetCursorScreenPos(ImVec2(x + labelW, row));
-    ImGui::PushStyleColor(ImGuiCol_Text, fpsCol);
-    ImGui::Text("%.0f FPS", fps);
-    ImGui::PopStyleColor();
-
-    // FPS mini bar
-    float barTop = row + 24.0f;
-    ImVec2 barMin(x + labelW, barTop);
-    ImVec2 barMax(x + labelW + barW, barTop + 3.0f);
-    draw->AddRectFilled(barMin, barMax, ImColor(1.0f, 1.0f, 1.0f, 0.07f), 2.0f);
-    float fillF = fminf(fps / 240.0f, 1.0f);
-    if (fillF > 0.02f) {
-        draw->AddRectFilled(barMin, ImVec2(barMin.x + barW * fillF, barMax.y), ImColor(fpsCol.x, fpsCol.y, fpsCol.z, 0.6f), 2.0f);
-    }
-
-    // Latency
-    static float ping = 18.0f;
-    ping += (rand() % 3 - 1) * 0.5f;
-    if (ping < 5.0f) ping = 5.0f;
-    ImVec4 pingCol = ping < 60.0f ? ImVec4(0.4f, 1.0f, 0.4f, 1.0f)
-                  : (ping < 120.0f ? ImVec4(1.0f, 0.85f, 0.3f, 1.0f) : ImVec4(1.0f, 0.4f, 0.35f, 1.0f));
-    row += 32.0f;
-    ImGui::SetCursorScreenPos(ImVec2(x, row));
-    ImGui::Text("Latency");
-    ImGui::SetCursorScreenPos(ImVec2(x + labelW, row));
-    ImGui::PushStyleColor(ImGuiCol_Text, pingCol);
-    ImGui::Text("%.0f ms", ping);
-    ImGui::PopStyleColor();
-
-    // Security
-    row += 22.0f;
-    ImGui::SetCursorScreenPos(ImVec2(x, row));
-    ImGui::Text("Security");
-    ImGui::SetCursorScreenPos(ImVec2(x + labelW, row));
-    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.4f, 1.0f, 0.4f, 1.0f));
-    ImGui::Text("PROTECTED");
-    ImGui::PopStyleColor();
-}
-
-static void RenderLatestUpdates() {
-    const ImVec4 accent = GUI::g_colorAccent;
-    ImFont* fontH3 = GUI::g_fontH3 ? GUI::g_fontH3 : ImGui::GetIO().Fonts->Fonts[0];
-    ImDrawList* draw = ImGui::GetWindowDrawList();
-    ImVec2 winPos = ImGui::GetWindowPos();
-    float winW = ImGui::GetWindowWidth();
-    float winH = ImGui::GetWindowHeight();
-
-    // Header row
-    ImGui::SetCursorPos(ImVec2(14, 10));
-    ImGui::PushFont(fontH3);
-    ImGui::PushStyleColor(ImGuiCol_Text, accent);
-    ImGui::Text("LATEST UPDATES");
-    ImGui::PopStyleColor();
-    ImGui::PopFont();
-
-    // Refresh button (top right)
-    float btnW = 80.0f;
-    ImGui::SetCursorPos(ImVec2(winW - btnW - 14.0f, 8));
-    ImGui::PushStyleColor(ImGuiCol_Text, Info::g_fetchInProgress ? ImVec4(1.0f, 1.0f, 1.0f, 0.4f) : accent);
-    if (GUI::RenderButton("REFRESH", ImVec2(btnW, 22))) {
-        if (!Info::g_fetchInProgress) Info::FetchLatestRelease();
-    }
-    ImGui::PopStyleColor();
-    if (ImGui::IsItemHovered() && !Info::g_fetchInProgress) ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
-
-    // Divider
-    float divY = winPos.y + 40.0f;
-    draw->AddLine(ImVec2(winPos.x + 14.0f, divY), ImVec2(winPos.x + winW - 14.0f, divY), ImColor(1.0f, 1.0f, 1.0f, 0.10f), 1.0f);
-
-    // Logo on the right
-    float logoW = 0.0f, logoH = 0.0f;
-    if (Info::g_logoTexture != 0) {
-        float availLogoW = fminf(winW * 0.26f, 150.0f);
-        float availLogoH = winH - (divY - winPos.y) - 24.0f;
-        float scale = fminf(availLogoW / (float)Info::g_logoWidth, availLogoH / (float)Info::g_logoHeight);
-        logoW = (float)Info::g_logoWidth * scale;
-        logoH = (float)Info::g_logoHeight * scale;
-        ImVec2 logoPos(winPos.x + winW - logoW - 14.0f, divY + (winH - (divY - winPos.y) - logoH) * 0.5f);
-        ImGui::SetCursorScreenPos(logoPos);
-        if (ImGui::ImageButton("##InfoLogo", Info::g_logoTexture, ImVec2(logoW, logoH), ImVec2(0, 0), ImVec2(1, 1), ImVec4(0, 0, 0, 0))) {
-            Info::PlayClickSound();
-        }
-        if (ImGui::IsItemHovered()) ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
-    }
-
-    // Scrollable text region (version history / latest release)
-    float textW = winW - 28.0f - (logoW > 0.0f ? logoW + 16.0f : 0.0f);
-    if (textW < 100.0f) textW = 100.0f;
-    ImGui::SetCursorScreenPos(ImVec2(winPos.x + 14.0f, divY + 10.0f));
-    ImGui::BeginChild("UpdatesText", ImVec2(textW, 0), false, ImGuiWindowFlags_AlwaysVerticalScrollbar);
-    {
-        ImDrawList* idl = ImGui::GetWindowDrawList();
-        float textWrap = textW - 14.0f;
-
-        bool hasRelease = Info::g_fetchDone && !Info::g_fetchFailed && !Info::g_releaseBody.empty();
-
-        if (Info::g_fetchInProgress) {
-            ImGui::TextDisabled("Fetching latest release from GitHub...");
-            ImGui::Spacing();
-        } else if (Info::g_fetchDone && Info::g_fetchFailed) {
-            ImGui::TextDisabled("Could not reach GitHub - showing local release history:");
-            ImGui::Spacing();
-        }
-
-        if (hasRelease) {
-            const char* tag = Info::g_releaseTag.empty() ? "latest" : Info::g_releaseTag.c_str();
-            ImVec2 p = ImGui::GetCursorScreenPos();
-            ImVec2 bs = DrawVersionBadge(idl, fontH3, 13.0f, p, tag, accent);
-            ImGui::SetCursorScreenPos(p);
-            ImGui::Dummy(bs);
-
-            if (!Info::g_releaseName.empty()) {
-                ImGui::SameLine(0, 10.0f);
-                ImGui::SetCursorScreenPos(ImVec2(p.x + bs.x + 10.0f, p.y + 1.0f));
-                ImGui::PushFont(fontH3);
-                ImGui::Text("%s", Info::g_releaseName.c_str());
-                ImGui::PopFont();
-            }
-            if (!Info::g_releaseDate.empty()) {
-                ImGui::SetCursorScreenPos(ImVec2(winPos.x + 14.0f + textW - 90.0f, p.y + 3.0f));
-                ImGui::TextDisabled("%s", Info::g_releaseDate.c_str());
-            }
-
-            // Body snippet (strip markdown clutter, truncate to a preview)
-            std::string clean;
-            bool inCode = false;
-            for (char c : Info::g_releaseBody) {
-                if (c == '`') { inCode = !inCode; continue; }
-                if (c == '\n' || c == '\r') c = ' ';
-                if (c == '#' && !inCode) continue;
-                if (c == '*' || c == '>' || c == '-') continue;
-                clean += c;
-            }
-            std::string collapsed;
-            bool prevSpace = false;
-            for (char c : clean) {
-                if (c == ' ' && prevSpace) continue;
-                collapsed += c;
-                prevSpace = (c == ' ');
-            }
-            while (!collapsed.empty() && collapsed[0] == ' ') collapsed.erase(0, 1);
-            if (collapsed.size() > 160) {
-                size_t cut = collapsed.find_last_of(" ", 160);
-                if (cut == std::string::npos || cut < 40) cut = 160;
-                collapsed = collapsed.substr(0, cut);
-                while (!collapsed.empty() && collapsed.back() == ' ') collapsed.pop_back();
-                collapsed += "...";
-            }
-
-            ImGui::SetCursorScreenPos(ImVec2(p.x, p.y + bs.y + 9.0f));
-            ImGui::PushTextWrapPos(textWrap);
-            ImGui::TextWrapped("%s", collapsed.c_str());
-            ImGui::PopTextWrapPos();
-
-            ImGui::Spacing();
-            if (GUI::RenderButton("VIEW RELEASE NOTES", ImVec2(170, 24))) {
-                Info::g_showReleaseModal = true;
-            }
-            if (ImGui::IsItemHovered()) ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
-            ImGui::Spacing();
-            ImGui::Separator();
-            ImGui::Spacing();
-        }
-
-        // Version history
-        for (int i = 0; i < (int)IM_ARRAYSIZE(kUpdateHistory); i++) {
-            const UpdateEntry& e = kUpdateHistory[i];
-            ImVec4 badgeCol = e.isLatest ? accent : ImVec4(0.55f, 0.56f, 0.62f, 1.0f);
-            ImVec2 p = ImGui::GetCursorScreenPos();
-            ImVec2 bs = DrawVersionBadge(idl, fontH3, 13.0f, p, e.version, badgeCol);
-            ImGui::SetCursorScreenPos(p);
-            ImGui::Dummy(bs);
-            ImGui::SameLine(0, 10.0f);
-            ImGui::SetCursorScreenPos(ImVec2(p.x + bs.x + 10.0f, p.y + 3.0f));
-            ImGui::Text("%s", e.desc);
-            ImGui::Spacing();
-            if (i < (int)IM_ARRAYSIZE(kUpdateHistory) - 1) {
-                ImGui::Separator();
-                ImGui::Spacing();
-            }
-        }
-    }
-    ImGui::EndChild();
-}
-
-void Info::RenderDashboard() {
-    ImGui::BeginChild("Dashboard", ImVec2(0, -115), false, ImGuiWindowFlags_NoScrollbar);
-    {
-        ImVec2 avail = ImGui::GetContentRegionAvail();
-        float gap = 20.0f;
-        float profileW = (avail.x - gap) * 0.55f;
-        float statsW = avail.x - gap - profileW;
-
-        // Top row: profile + system stats
-        ImGui::BeginChild("ProfileCard", ImVec2(profileW, 120), true);
-        RenderProfileCard();
-        ImGui::EndChild();
-
-        ImGui::SameLine(0, gap);
-
-        ImGui::BeginChild("StatsCard", ImVec2(statsW, 120), true);
-        RenderStatsCard();
-        ImGui::EndChild();
-
-        ImGui::Spacing();
-        ImGui::Spacing();
-
-        // Bottom row: latest updates (fills remaining space)
-        ImGui::BeginChild("UpdatesCard", ImVec2(0, 0), true);
-        RenderLatestUpdates();
-        ImGui::EndChild();
-    }
-    ImGui::EndChild();
-}
-
-void Info::RenderSocialButtons() {
+void Info::RenderMenu() {
     ImVec2 avail = ImGui::GetContentRegionAvail();
     const ImVec4 accent = GUI::g_colorAccent;
+
+    // Center everything vertically
+    float totalH = 200.0f; // logo + title + icons approx height
+    float startY = (avail.y - totalH) * 0.5f;
+    if (startY < 0) startY = 0;
+    ImGui::SetCursorPosY(startY);
+
+    // ── Centered logo ──
+    if (g_logoTexture != 0 && g_logoWidth > 0 && g_logoHeight > 0) {
+        float maxLogoH = 120.0f;
+        float scale = (float)maxLogoH / (float)g_logoHeight;
+        float logoW = (float)g_logoWidth * scale;
+        float logoH = maxLogoH;
+        ImGui::SetCursorPosX((avail.x - logoW) * 0.5f);
+        ImGui::Image((ImTextureID)g_logoTexture, ImVec2(logoW, logoH));
+        ImGui::Spacing();
+        ImGui::Spacing();
+    }
+
+    // ── Title text ──
+    const char* title = "KittyDLL 2.0.0";
+    const char* subtitle = "Amatayakul Client";
+    ImFont* fontH2 = GUI::g_fontH2 ? GUI::g_fontH2 : ImGui::GetIO().Fonts->Fonts[0];
+    ImFont* fontH3 = GUI::g_fontH3 ? GUI::g_fontH3 : ImGui::GetIO().Fonts->Fonts[0];
+
+    {
+        ImVec2 ts = fontH2->CalcTextSizeA(22.0f, FLT_MAX, 0.0f, title);
+        ImGui::SetCursorPosX((avail.x - ts.x) * 0.5f);
+        ImGui::PushFont(fontH2);
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 1.0f, 1.0f, 0.92f));
+        ImGui::Text("%s", title);
+        ImGui::PopStyleColor();
+        ImGui::PopFont();
+    }
+    {
+        ImVec2 ts = fontH3->CalcTextSizeA(14.0f, FLT_MAX, 0.0f, subtitle);
+        ImGui::SetCursorPosX((avail.x - ts.x) * 0.5f);
+        ImGui::PushFont(fontH3);
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 1.0f, 1.0f, 0.45f));
+        ImGui::Text("%s", subtitle);
+        ImGui::PopStyleColor();
+        ImGui::PopFont();
+    }
+
     ImGui::Spacing();
-    ImGui::SetCursorPosX((avail.x - 306.0f) * 0.5f);
+    ImGui::Spacing();
 
-    ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(accent.x, accent.y, accent.z, 0.16f));
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(accent.x, accent.y, accent.z, 0.30f));
-    ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(accent.x, accent.y, accent.z, 0.45f));
-    ImGui::PushStyleColor(ImGuiCol_Text, accent);
+    // ── Social icon buttons ──
+    float iconMaxH = 36.0f;
+    float gap = 20.0f;
+    // Compute each icon size maintaining its native aspect ratio
+    float discordW = 0, discordH = 0, githubW = 0, githubH = 0;
+    if (g_discordIconW > 0 && g_discordIconH > 0) {
+        float s = iconMaxH / (float)g_discordIconH;
+        discordW = (float)g_discordIconW * s;
+        discordH = iconMaxH;
+    }
+    if (g_githubIconW > 0 && g_githubIconH > 0) {
+        float s = iconMaxH / (float)g_githubIconH;
+        githubW = (float)g_githubIconW * s;
+        githubH = iconMaxH;
+    }
+    float totalW = discordW + githubW + gap;
+    float startX = (avail.x - totalW) * 0.5f;
+    ImGui::SetCursorPosX(startX);
 
-    if (GUI::RenderButton("DISCORD", ImVec2(90, 35))) {
-        ShellExecuteA(0, "open", "https://discord.gg/7hJjTCfyJ2", 0, 0, SW_SHOWNORMAL);
-        ImGui::SetClipboardText("https://discord.gg/7hJjTCfyJ2");
-        strcpy(g_notifTitle, "Discord");
-        strcpy(g_notifMessage, "Link copied to clipboard!");
-        g_notifStart = GetTickCount64();
-        PlayClickSound();
-    }
-    ImGui::SameLine(0, 8);
-    if (GUI::RenderButton("GITHUB", ImVec2(90, 35))) {
-        ShellExecuteA(0, "open", "https://github.com/iVyz3r/aegledll", 0, 0, SW_SHOWNORMAL);
-        ImGui::SetClipboardText("https://github.com/iVyz3r/aegledll");
-        strcpy(g_notifTitle, "Github");
-        strcpy(g_notifMessage, "Link copied to clipboard!");
-        g_notifStart = GetTickCount64();
-        PlayClickSound();
-    }
-    ImGui::SameLine(0, 8);
-    if (GUI::RenderButton("VERSION INFO", ImVec2(110, 35))) {
-        g_showReleaseModal = true;
-        if (!g_fetchDone && !g_fetchInProgress) {
-            FetchLatestRelease();
+    // Discord button
+    if (g_discordIcon != 0 && discordW > 0) {
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 8.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(accent.x, accent.y, accent.z, 0.18f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(accent.x, accent.y, accent.z, 0.30f));
+        if (ImGui::ImageButton("##DiscordBtn", g_discordIcon, ImVec2(discordW, discordH), ImVec2(0,0), ImVec2(1,1), ImVec4(0,0,0,0))) {
+            ShellExecuteA(0, "open", "https://dsc.gg/anarchdevelopment", 0, 0, SW_SHOWNORMAL);
+            strcpy(g_notifTitle, "Discord");
+            strcpy(g_notifMessage, "Opening Discord...");
+            g_notifStart = GetTickCount64();
+            PlayClickSound();
         }
-        PlayClickSound();
-    }
-    ImGui::PopStyleColor(4);
-
-    if (ImGui::IsItemHovered()) {
-        ImGui::SetTooltip("Fetch latest release notes from GitHub");
-    }
-}
-
-void Info::RenderMenu() {
-    // Auto-fetch the latest GitHub release once when the Info tab is opened
-    static bool s_autoFetchStarted = false;
-    if (!s_autoFetchStarted) {
-        s_autoFetchStarted = true;
-        if (!g_fetchDone && !g_fetchInProgress) {
-            FetchLatestRelease();
+        ImGui::PopStyleColor(3);
+        ImGui::PopStyleVar(2);
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+            ImGui::SetTooltip("Join our Discord server");
         }
     }
+    ImGui::SameLine(0, gap);
 
-    RenderDashboard();
-    RenderSocialButtons();
+    // GitHub button
+    if (g_githubIcon != 0 && githubW > 0) {
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 8.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
+        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0, 0, 0, 0));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(accent.x, accent.y, accent.z, 0.18f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(accent.x, accent.y, accent.z, 0.30f));
+        if (ImGui::ImageButton("##GithubBtn", g_githubIcon, ImVec2(githubW, githubH), ImVec2(0,0), ImVec2(1,1), ImVec4(0,0,0,0))) {
+            ShellExecuteA(0, "open", "https://github.com/AnarchDevelopment/KittyDLL", 0, 0, SW_SHOWNORMAL);
+            strcpy(g_notifTitle, "GitHub");
+            strcpy(g_notifMessage, "Opening GitHub...");
+            g_notifStart = GetTickCount64();
+            PlayClickSound();
+        }
+        ImGui::PopStyleColor(3);
+        ImGui::PopStyleVar(2);
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+            ImGui::SetTooltip("View source on GitHub");
+        }
+    }
 
     // ── Release Notes Modal ──────────────────────────────────────────────────
     float targetAnim = g_showReleaseModal ? 1.0f : 0.0f;
@@ -1087,28 +884,6 @@ void Info::RenderMenu() {
             }
         }
     }
-    
-    // Bottom footer panel for theme customizer
-    ImGui::BeginChild("ThemeCustomizer", ImVec2(0, 50), true);
-    {
-        ImGui::SetCursorPos(ImVec2(15, 12));
-        ImGui::TextColored(GUI::g_colorAccent, "THEME CUSTOMIZER");
-        
-        ImGui::SameLine(0, 40);
-        ImGui::SetCursorPosY(10);
-        
-        const char* themes[] = { "Aegle Classic", "Sakura Blossom", "Cyberpunk 2077", "Emerald Forest", "Deep Sea", "Legacy Pink" };
-        int currentTheme = GUI::g_currentTheme;
-        
-        ImGui::Text("Active Theme:"); ImGui::SameLine();
-        ImGui::PushItemWidth(180);
-        if (GUI::RenderCombo("##ActiveTheme", &currentTheme, themes, IM_ARRAYSIZE(themes))) {
-            GUI::ApplyThemePreset(currentTheme);
-        }
-        
-        ImGui::PopItemWidth();
-    }
-    ImGui::EndChild();
 }
 
 

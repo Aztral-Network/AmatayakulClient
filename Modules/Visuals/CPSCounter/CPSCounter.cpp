@@ -40,6 +40,9 @@ int CPSCounter::g_lmbClickIndex = 0;
 int CPSCounter::g_rmbClickIndex = 0;
 int CPSCounter::g_lmbCps = 0;
 int CPSCounter::g_rmbCps = 0;
+bool CPSCounter::g_countXUAsClicks = false;
+bool CPSCounter::g_prevXPressed = false;
+bool CPSCounter::g_prevUPressed = false;
 
 // Forward declarations for easing and HudElement (these will be linked from dllmain.cpp)
 extern bool g_showMenu;
@@ -59,6 +62,22 @@ void CPSCounter::UpdateCPS(ULONGLONG now, bool lmbPressed, bool rmbPressed, bool
     if (rmbPressed && !prevRmbPressed) {
         g_rmbClickTimes[g_rmbClickIndex] = now;
         g_rmbClickIndex = (g_rmbClickIndex + 1) % MAX_CPS_HISTORY;
+    }
+    
+    // Map X -> LMB and U -> RMB clicks (rising-edge detection)
+    if (g_countXUAsClicks) {
+        bool xPressed = (GetAsyncKeyState('X') & 0x8000) != 0;
+        bool uPressed = (GetAsyncKeyState('U') & 0x8000) != 0;
+        if (xPressed && !g_prevXPressed) {
+            g_lmbClickTimes[g_lmbClickIndex] = now;
+            g_lmbClickIndex = (g_lmbClickIndex + 1) % MAX_CPS_HISTORY;
+        }
+        if (uPressed && !g_prevUPressed) {
+            g_rmbClickTimes[g_rmbClickIndex] = now;
+            g_rmbClickIndex = (g_rmbClickIndex + 1) % MAX_CPS_HISTORY;
+        }
+        g_prevXPressed = xPressed;
+        g_prevUPressed = uPressed;
     }
 
     // Recalculate CPS every frame for smooth decay to 0
@@ -134,15 +153,21 @@ void CPSCounter::RenderDisplay(int screenWidth, int screenHeight) {
         
         // Calculate text size for collision box
         std::string cpsText = ProcessCPSCounterFormat(g_cpsCounterFormat, g_lmbCps, g_rmbCps);
+        if ((GetAsyncKeyState(VK_MENU) & 0x8000) && (GetAsyncKeyState('X') & 0x8000)) {
+            cpsText = "ALT X!";
+        }
+        else if ((GetAsyncKeyState(VK_MENU) & 0x8000) && (GetAsyncKeyState('U') & 0x8000)) {
+            cpsText = "ALT U!";
+        }
         ImFont* cpsFont = GUI::GetFontByName(g_fontName);
         ImGui::PushFont(cpsFont);
         if (cpsFont) {
-            float fontSize = 18.0f * g_cpsTextScale;
-            ImVec2 textSize = ImGui::CalcTextSize(cpsText.c_str());
+            float fontSize = 18.0f * g_cpsTextScale * g_cpsHud->scale;
+            ImVec2 textSize = cpsFont->CalcTextSizeA(fontSize, FLT_MAX, 0.0f, cpsText.c_str());
             // Update collision size from text
             g_cpsHud->size = ImVec2(
-                textSize.x * g_cpsTextScale + 4.0f,  // Small padding
-                fontSize + 4.0f
+                textSize.x + 8.0f * g_cpsHud->scale,
+                textSize.y + 4.0f * g_cpsHud->scale
             );
         }
         
@@ -151,12 +176,9 @@ void CPSCounter::RenderDisplay(int screenWidth, int screenHeight) {
             g_cpsHud->HandleDrag(true);
             g_cpsHud->ClampToScreen();
             
-            // Draw collision border (cyan)
             ImDrawList* debugDraw = ImGui::GetForegroundDrawList();
             if (debugDraw) {
-                ImVec2 p1 = g_cpsHud->pos;
-                ImVec2 p2 = ImVec2(g_cpsHud->pos.x + g_cpsHud->size.x, g_cpsHud->pos.y + g_cpsHud->size.y);
-                debugDraw->AddRect(p1, p2, ImGui::GetColorU32(ImVec4(0.0f, 1.0f, 1.0f, 0.8f)), 0.0f, 0, 2.0f);
+                g_cpsHud->RenderHudEditor(debugDraw);
             }
         }
         
@@ -166,8 +188,8 @@ void CPSCounter::RenderDisplay(int screenWidth, int screenHeight) {
         ImDrawList* cpsDraw = ImGui::GetForegroundDrawList();
         if (cpsDraw && cpsAlpha > 1.0f) {
             if (cpsFont) {
-                float fontSize = 18.0f * g_cpsTextScale;
-                ImVec2 textSize = ImGui::CalcTextSize(cpsText.c_str());
+                float fontSize = 18.0f * g_cpsTextScale * g_cpsHud->scale;
+                ImVec2 textSize = cpsFont->CalcTextSizeA(fontSize, FLT_MAX, 0.0f, cpsText.c_str());
                 
                 // Use HUD position
                 float posX = g_cpsHud->pos.x;
@@ -177,10 +199,10 @@ void CPSCounter::RenderDisplay(int screenWidth, int screenHeight) {
                     case 0: // Left
                         break;
                     case 1: // Center
-                        posX += (g_cpsHud->size.x - (textSize.x * g_cpsTextScale)) / 2.0f;
+                        posX += (g_cpsHud->size.x - textSize.x) / 2.0f;
                         break;
                     case 2: // Right
-                        posX += g_cpsHud->size.x - (textSize.x * g_cpsTextScale);
+                        posX += g_cpsHud->size.x - textSize.x;
                         break;
                 }
                 
@@ -237,6 +259,13 @@ void CPSCounter::RenderMenu() {
                 if (g_cpsCounterShadow) {
                     GUI::RenderSlider("Shadow Offset", &g_cpsCounterShadowOffset, 0.0f, 10.0f, "%.1f");
                     ImGui::ColorEdit4("Shadow Color", &g_cpsCounterShadowColor.x);
+                }
+                ImGui::EndTabItem();
+            }
+            if (ImGui::BeginTabItem("Behavior")) {
+                GUI::RenderCustomSwitch("Count X/U as Clicks", &g_countXUAsClicks);
+                if (ImGui::IsItemHovered()) {
+                    ImGui::SetTooltip("When enabled, pressing X counts as a LMB click and U counts as a RMB click.");
                 }
                 ImGui::EndTabItem();
             }

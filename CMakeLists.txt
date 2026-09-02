@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(Azyre
+project(Kitty
     VERSION 1.0.9
     LANGUAGES C CXX RC
 )
@@ -61,17 +61,12 @@ set(SOURCES
     Modules/Globals.cpp
     Modules/ModuleManager.cpp
     Modules/Alloc/AllocateNear.cpp
-    Modules/Combat/Hitbox/Hitbox.cpp
-    Modules/Combat/Reach/Reach.cpp
     Modules/Info/Info.cpp
     Modules/Misc/AntiAFK/AntiAFK.cpp
-    Modules/Misc/AutoClicker/AutoClicker.cpp
+    Modules/Misc/NoHurtCam/NoHurtCam.cpp
     Modules/Misc/Screenshot/Screenshot.cpp
     Modules/Misc/UnlockFPS/UnlockFPS.cpp
     Modules/Movement/AutoSprint/AutoSprint.cpp
-    Modules/Movement/Fly/Fly.cpp
-    Modules/Movement/Glide/Glide.cpp
-    Modules/Movement/Timer/Timer.cpp
     Modules/PatternScan/PatternScan.cpp
     Modules/Splash/Splash.cpp
     Modules/Terminal/Terminal.cpp
@@ -126,20 +121,15 @@ set(HEADERS
     MinHook/trampoline.h
     miniaudio/miniaudio.h
     Modules/Alloc/AllocateNear.hpp
-    Modules/Combat/Hitbox/Hitbox.hpp
-    Modules/Combat/Reach/Reach.hpp
     Modules/Globals.hpp
     Modules/Info/Info.hpp
     Modules/Misc/AntiAFK/AntiAFK.hpp
-    Modules/Misc/AutoClicker/AutoClicker.hpp
+    Modules/Misc/NoHurtCam/NoHurtCam.hpp
     Modules/Misc/Screenshot/Screenshot.hpp
     Modules/Misc/UnlockFPS/UnlockFPS.hpp
     Modules/ModuleHeader.hpp
     Modules/ModuleManager.hpp
     Modules/Movement/AutoSprint/AutoSprint.hpp
-    Modules/Movement/Glide/Glide.hpp
-    Modules/Movement/Fly/Fly.hpp
-    Modules/Movement/Timer/Timer.hpp
     Modules/PatternScan/PatternScan.hpp
     Modules/Splash/Splash.hpp
     Modules/Terminal/Terminal.hpp
@@ -168,7 +158,7 @@ add_library(${PROJECT_NAME} SHARED
 
 # Output name
 set_target_properties(${PROJECT_NAME} PROPERTIES
-    OUTPUT_NAME "Azyre"
+    OUTPUT_NAME "Kitty"
     PREFIX ""
 )
 

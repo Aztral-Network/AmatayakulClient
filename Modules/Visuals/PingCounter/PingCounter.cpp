@@ -715,13 +715,11 @@ void PingCounter::RenderDisplay(float sw, float sh) {
         
         ImFont* font = GUI::GetFontByName(g_fontName);
         ImGui::PushFont(font);
-        float fontSize = 18.0f * g_pingTextScale;
-        ImVec2 textSize = ImGui::CalcTextSize(text);
-        textSize.x *= g_pingTextScale;
-        textSize.y *= g_pingTextScale;
+        float fontSize = 18.0f * g_pingTextScale * g_pingHud->scale;
+        ImVec2 textSize = font->CalcTextSizeA(fontSize, FLT_MAX, 0.0f, text);
         
-        float paddingX = 8.0f * g_pingTextScale;
-        float paddingY = 4.0f * g_pingTextScale;
+        float paddingX = 8.0f * g_pingTextScale * g_pingHud->scale;
+        float paddingY = 4.0f * g_pingTextScale * g_pingHud->scale;
         
         g_pingHud->size = ImVec2(textSize.x + paddingX * 2, textSize.y + paddingY * 2);
         
@@ -748,7 +746,7 @@ void PingCounter::RenderDisplay(float sw, float sh) {
             float textY = pos.y + paddingY;
             
             if (g_pingTextShadow) {
-                float shadowOffset = 1.0f * g_pingTextScale;
+                float shadowOffset = 1.0f * g_pingTextScale * g_pingHud->scale;
                 ImU32 shadowCol = ImGui::GetColorU32(ImVec4(g_pingCounterShadowColor.x, g_pingCounterShadowColor.y, g_pingCounterShadowColor.z, g_pingCounterShadowColor.w * easedAnim));
                 draw->AddText(font, fontSize, ImVec2(textX + shadowOffset, textY + shadowOffset), shadowCol, text);
             }
@@ -757,7 +755,7 @@ void PingCounter::RenderDisplay(float sw, float sh) {
             draw->AddText(font, fontSize, ImVec2(textX, textY), textCol, text);
             
             if (GUI::IsHudEditable()) {
-                draw->AddRect(pos, ImVec2(pos.x + g_pingHud->size.x, pos.y + g_pingHud->size.y), IM_COL32(0, 150, 255, 200), 0.0f, 0, 2.0f);
+                g_pingHud->RenderHudEditor(draw);
             }
         }
         ImGui::PopFont();

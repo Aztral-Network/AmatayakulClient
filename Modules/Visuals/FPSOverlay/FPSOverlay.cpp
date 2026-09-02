@@ -64,9 +64,9 @@ void FPSOverlay::RenderDisplay(int screenWidth, int screenHeight) {
     sprintf_s(fpsText, "FPS: %.0f", RenderInfo::g_fpsCounter);
     
     // Calculate required size based on text and scale
-    float fontSize = ImGui::GetFontSize() * g_fpsTextScale;
+    float fontSize = ImGui::GetFontSize() * g_fpsTextScale * g_fpsHud->scale;
     ImVec2 textSize = ImGui::GetFont()->CalcTextSizeA(fontSize, FLT_MAX, 0.0f, fpsText);
-    float padding = 20.0f * g_fpsTextScale;
+    float padding = 20.0f * g_fpsTextScale * g_fpsHud->scale;
     g_fpsHud->size = ImVec2(textSize.x + padding, textSize.y + padding);
 
     extern bool g_showMenu;
@@ -74,12 +74,9 @@ void FPSOverlay::RenderDisplay(int screenWidth, int screenHeight) {
         g_fpsHud->HandleDrag(true);
         g_fpsHud->ClampToScreen();
         
-        // Draw collision border (cyan) like other modules
         ImDrawList* debugDraw = ImGui::GetForegroundDrawList();
         if (debugDraw) {
-            ImVec2 p1 = g_fpsHud->pos;
-            ImVec2 p2 = ImVec2(g_fpsHud->pos.x + g_fpsHud->size.x, g_fpsHud->pos.y + g_fpsHud->size.y);
-            debugDraw->AddRect(p1, p2, ImColor(0, 255, 255, 200), 10.0f, 0, 2.0f);
+            g_fpsHud->RenderHudEditor(debugDraw);
         }
     }
 

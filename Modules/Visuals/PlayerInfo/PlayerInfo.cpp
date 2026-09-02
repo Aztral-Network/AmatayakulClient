@@ -280,15 +280,16 @@ void PlayerInfo::RenderDisplay() {
     ImDrawList* draw = ImGui::GetForegroundDrawList();
     ImVec2 pos = g_playerInfoHud->pos;
 
-    // Content metrics
-    const float headSize = g_headSize;
-    const float fontSize = 16.0f * g_textScale;
+    // Content metrics (scale applied to everything)
+    float sc = g_playerInfoHud->scale;
+    const float headSize = g_headSize * sc;
+    const float fontSize = 16.0f * g_textScale * sc;
     ImFont* font = GUI::g_fontDefault ? GUI::g_fontDefault : ImGui::GetFont();
     std::string displayName = g_playerName.empty() ? "Unknown" : g_playerName;
     ImVec2 ts = font->CalcTextSizeA(fontSize, FLT_MAX, 0.0f, displayName.c_str());
 
-    const float padX = 10.0f, padY = 8.0f;
-    const float gap = 8.0f;
+    const float padX = 10.0f * sc, padY = 8.0f * sc;
+    const float gap = 8.0f * sc;
     float boxW = padX * 2.0f + headSize + gap + ts.x;
     float boxH = padY * 2.0f + fmaxf(headSize, ts.y);
 
@@ -296,13 +297,13 @@ void PlayerInfo::RenderDisplay() {
 
     // Background
     if (g_showBackground) {
-        draw->AddRectFilled(pos, pos + ImVec2(boxW, boxH), IM_COL32(20, 20, 26, (int)(255 * g_bgOpacity * eased)), g_bgRadius);
+        draw->AddRectFilled(pos, pos + ImVec2(boxW, boxH), IM_COL32(20, 20, 26, (int)(255 * g_bgOpacity * eased)), g_bgRadius * sc);
     }
 
     // Border
     if (g_showBorder) {
         ImU32 borderCol = ImGui::GetColorU32(ImVec4(g_borderColor.x, g_borderColor.y, g_borderColor.z, g_borderColor.w * eased));
-        draw->AddRect(pos, pos + ImVec2(boxW, boxH), borderCol, g_bgRadius, 0, 1.0f);
+        draw->AddRect(pos, pos + ImVec2(boxW, boxH), borderCol, g_bgRadius * sc, 0, 1.0f);
     }
 
     // Skin head (crisp baked texture). The face region of the raw skin is only
@@ -315,7 +316,7 @@ void PlayerInfo::RenderDisplay() {
         if (headView) {
             draw->AddCallback(ImGuiBindNearestSampler, nullptr);
             if (g_headRounded) {
-                draw->AddImageRounded((ImTextureID)headView, headMin, headMin + ImVec2(headSize, headSize), ImVec2(0, 0), ImVec2(1, 1), col, g_headRadius, ImDrawFlags_RoundCornersAll);
+                draw->AddImageRounded((ImTextureID)headView, headMin, headMin + ImVec2(headSize, headSize), ImVec2(0, 0), ImVec2(1, 1), col, g_headRadius * sc, ImDrawFlags_RoundCornersAll);
             } else {
                 draw->AddImage((ImTextureID)headView, headMin, headMin + ImVec2(headSize, headSize), ImVec2(0, 0), ImVec2(1, 1), col);
             }
@@ -334,7 +335,7 @@ void PlayerInfo::RenderDisplay() {
     draw->AddText(font, fontSize, textPos, ImGui::GetColorU32(ImVec4(g_nameColor.x, g_nameColor.y, g_nameColor.z, g_nameColor.w * eased)), displayName.c_str());
 
     if (GUI::IsHudEditable()) {
-        draw->AddRect(g_playerInfoHud->pos, pos + ImVec2(boxW, boxH), IM_COL32(255, 255, 255, 80));
+        g_playerInfoHud->RenderHudEditor(draw);
     }
 }
 

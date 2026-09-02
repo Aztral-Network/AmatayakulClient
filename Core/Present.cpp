@@ -14,6 +14,7 @@ Under an4rch Development Public Source License 1.0
 #include "../ArrayList/ArrayList.hpp"
 #include "../Hook/Hook.hpp"
 #include "../Input/Input.hpp"
+#include "../Config/ConfigManager.hpp"
 
 DWORD WINAPI Present::MainThread(LPVOID lpReserved) {
     UnlockFPS::Initialize();
@@ -79,6 +80,35 @@ HRESULT Present::Run(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT Flags) 
     Screenshot::TryCaptureFrame(pDevice, pContext, pSwapChain);
 
     UnlockFPS::UpdateFPS(pSwapChain);
+
+    // --- Auto-save throttle -------------------------------------------------
+    // If the menu is open and ImGui captured mouse/keyboard this frame (user
+    // interacted with a widget), mark a dirty timestamp.  1 second after the
+    // last interaction we flush the active config to disk so no write storms
+    // occur while the user drags a slider.
+    {
+        static ULONGLONG s_dirtyAt  = 0;
+        static bool      s_isDirty  = false;
+        const  ULONGLONG kDebounceMs = 1000ULL;
+
+        ImGuiIO& io = ImGui::GetIO();
+        bool interacting = g_showMenu &&
+                           (io.WantCaptureMouse || io.WantCaptureKeyboard) &&
+                           (io.MouseDown[0] || io.MouseDown[1] ||
+                            io.MouseReleased[0] || io.MouseReleased[1] ||
+                            io.WantCaptureKeyboard);
+
+        if (interacting) {
+            s_isDirty = true;
+            s_dirtyAt = now;
+        }
+
+        if (s_isDirty && (now - s_dirtyAt) >= kDebounceMs) {
+            ConfigManager::AutoSave();
+            s_isDirty = false;
+        }
+    }
+    // ------------------------------------------------------------------------
 
     return Hook::Present(pSwapChain, SyncInterval, Flags);
 }

@@ -85,17 +85,12 @@ namespace ArrayList {
         struct ModEntry { std::string name; std::string suffix; bool enabled; };
         
         std::vector<ModEntry> currentStates;
-        currentStates.push_back({"Reach", std::to_string((int)Reach::g_reachValue) + "m", Reach::g_reachEnabled});
-        currentStates.push_back({"Hitbox", std::to_string((int)(Hitbox::g_hitboxValue * 10)) + "x", Hitbox::g_hitboxEnabled});
-        currentStates.push_back({"AutoSprint", "", AutoSprint::g_autoSprintEnabled});
-        currentStates.push_back({"Glide", "", Glide::g_glideEnabled});
-        currentStates.push_back({"Fly", "", Fly::g_flyEnabled});
+        currentStates.push_back({"Toggle Sprint", "", AutoSprint::g_autoSprintEnabled});
         currentStates.push_back({"FullBright", "", FullBright::g_fullBrightEnabled});
-        currentStates.push_back({"Timer", std::to_string((int)Timer::g_timerValue) + "x", Timer::g_timerEnabled});
         currentStates.push_back({"UnlockFPS", std::to_string((int)UnlockFPS::g_fpsLimit) + "fps", UnlockFPS::g_unlockFpsEnabled});
-        currentStates.push_back({"AutoClicker", std::to_string((int)AutoClicker::g_cps) + "cps", AutoClicker::g_enabled});
         currentStates.push_back({"AntiAFK", "", AntiAFK::g_enabled});
         currentStates.push_back({"Screenshot", "", Screenshot::g_enabled});
+        currentStates.push_back({"NoHurtCam", "", NoHurtCam::g_enabled});
         currentStates.push_back({"MotionBlur", "", MotionBlur::g_motionBlurEnabled});
         currentStates.push_back({"Keystrokes", "", Keystrokes::g_showKeystrokes});
         currentStates.push_back({"CPSCounter", "", CPSCounter::g_showCpsCounter});
@@ -231,7 +226,7 @@ namespace ArrayList {
         ImFont* font = GUI::GetFontByName(g_fontName);
         ImGui::PushFont(font);
 
-        const float s = g_size;
+        const float s = g_size * g_hud->scale;
         const float fontPx = ImGui::GetFontSize() * s;
         auto ts = [&](const std::string& t) {
             return font->CalcTextSizeA(fontPx, FLT_MAX, 0.0f, t.c_str());
@@ -252,8 +247,7 @@ namespace ArrayList {
             g_hud->size.y = 20.0f * s;
             g_hasBlurRect = false;
             if (GUI::IsHudEditable()) {
-                // Show empty draggable area
-                draw->AddRect(g_hud->pos, ImVec2(g_hud->pos.x + g_hud->size.x, g_hud->pos.y + g_hud->size.y), IM_COL32(255, 255, 255, 80));
+                g_hud->RenderHudEditor(draw);
                 draw->AddText(ImVec2(g_hud->pos.x + 5, g_hud->pos.y + 2), IM_COL32(255, 255, 255, 150), "ArrayList (Empty)");
             }
             ImGui::PopFont();
@@ -400,7 +394,7 @@ namespace ArrayList {
 
         // Show draggable area border when menu is open
         if (GUI::IsHudEditable()) {
-            draw->AddRect(g_hud->pos, ImVec2(g_hud->pos.x + g_hud->size.x, g_hud->pos.y + g_hud->size.y), IM_COL32(255, 255, 255, 80));
+            g_hud->RenderHudEditor(draw);
         }
         ImGui::PopFont();
     }
@@ -421,6 +415,7 @@ namespace ArrayList {
 
     void HandleHudDrag(float screenWidth, bool menuOpen) {
         g_hud = &g_arrayListHud;
+        g_hud->resizable = true;
 
         g_arrayListHud.HandleDrag(menuOpen);
         g_arrayListHud.ClampToScreen();

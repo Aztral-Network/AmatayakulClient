@@ -96,6 +96,11 @@ public:
     static bool g_prevLmbPressed;
     static bool g_prevRmbPressed;
 
+    // X/U as click mapping
+    static bool g_countXUAsClicks;
+    static bool g_prevXPressed;
+    static bool g_prevUPressed;
+
     /// @brief Initialize Keystrokes with HudElement reference
     static void Initialize(HudElement* hud);
 

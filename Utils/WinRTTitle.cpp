@@ -21,16 +21,12 @@ Under an4rch Development Public Source License 1.0
 #pragma comment(lib, "winhttp.lib")
 
 namespace {
-    constexpr wchar_t kBaseWindowTitle[] = L"Azyre Client - 1.0.9";
+    constexpr wchar_t kBaseWindowTitle[] = L"Amatayakul";
     std::wstring s_title;
     HWND s_hwnd = nullptr;
 
-    std::wstring BuildWindowTitle(const std::string& commit) {
-        std::wstring wideCommit;
-        for (const char character : commit) {
-            wideCommit += static_cast<wchar_t>(static_cast<unsigned char>(character));
-        }
-        return L"[git-" + wideCommit + L"] " + kBaseWindowTitle;
+    std::wstring BuildWindowTitle(const std::string& /*commit*/) {
+        return kBaseWindowTitle;
     }
 
     std::string LoadGitHubToken() {
@@ -60,7 +56,7 @@ namespace {
     }
 
     std::string FetchGitHubResponse(const std::string& token) {
-        HINTERNET session = WinHttpOpen(L"AzyreClient/1.0", WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
+        HINTERNET session = WinHttpOpen(L"Amatayakul/1.0", WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
             WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
         if (!session) return {};
 
@@ -71,12 +67,12 @@ namespace {
 
         HINTERNET connection = WinHttpConnect(session, L"api.github.com", INTERNET_DEFAULT_HTTPS_PORT, 0);
         HINTERNET request = connection ? WinHttpOpenRequest(connection, L"GET",
-            L"/repos/AnarchDevelopment/AzyreDll/commits?per_page=1", nullptr,
+            L"/repos/AnarchDevelopment/Amatayakul/commits?per_page=1", nullptr,
             WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, WINHTTP_FLAG_SECURE) : nullptr;
         std::string response;
 
         if (request) {
-            std::wstring headers = L"Accept: application/vnd.github+json\r\nUser-Agent: AzyreClient\r\n";
+            std::wstring headers = L"Accept: application/vnd.github+json\r\nUser-Agent: Amatayakul\r\n";
             if (!token.empty()) {
                 headers += L"Authorization: Bearer ";
                 for (const char character : token) {

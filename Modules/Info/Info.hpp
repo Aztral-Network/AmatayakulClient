@@ -30,6 +30,12 @@ public:
     static ImTextureID g_logoTexture;
     static int g_logoWidth;
     static int g_logoHeight;
+    static ImTextureID g_discordIcon;
+    static int g_discordIconW;
+    static int g_discordIconH;
+    static ImTextureID g_githubIcon;
+    static int g_githubIconW;
+    static int g_githubIconH;
 
     // GitHub release info
     static std::string g_releaseBody;   // Markdown body of the latest release
@@ -46,11 +52,7 @@ public:
     static void FetchLatestRelease();
 
 private:
-    /// @brief Render the dashboard (profile card, system stats, latest updates)
-    static void RenderDashboard();
 
-    /// @brief Render the social link buttons (Discord / GitHub / Version Info)
-    static void RenderSocialButtons();
 
     // Audio resources
     static uint8_t* g_audioData;

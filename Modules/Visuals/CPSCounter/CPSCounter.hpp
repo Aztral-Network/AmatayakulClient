@@ -46,6 +46,11 @@ public:
     static int g_lmbCps;
     static int g_rmbCps;
     
+    // X/U as click mapping
+    static bool g_countXUAsClicks;
+    static bool g_prevXPressed;
+    static bool g_prevUPressed;
+    
     // HUD Element
     static HudElement* g_cpsHud;
     

@@ -26,6 +26,7 @@ extern HMODULE g_hModule;
 // Static member initialization
 // ──────────────────────────────────────────────
 bool  ClickGUI::g_enabled        = false;
+int   ClickGUI::g_bindKey        = VK_RSHIFT;
 int   ClickGUI::g_guiStyle       = 0;
 bool  ClickGUI::g_showParticles  = true;
 bool  ClickGUI::g_showRiseBackground = true;
@@ -1199,7 +1200,10 @@ void ClickGUI::RenderMenu() {
         GUI::g_showMenu = g_enabled;
     }
 
-    if (GUI::BeginModuleSettings("ClickGUI", &g_enabled)) {
+    bool alwaysTrue = true;
+    if (GUI::BeginModuleSettings("ClickGUI", &alwaysTrue)) {
+        GUI::RenderKeybind("Menu Key##CG", &g_bindKey);
+
         const char* styles[] = { "Regular", "Separated", "Rise", "Lunar", "Figma", "Aurora" };
         GUI::RenderCombo("GUI Style", &g_guiStyle, styles, IM_ARRAYSIZE(styles));
 
@@ -1217,7 +1221,7 @@ void ClickGUI::RenderMenu() {
             GUI::RenderCustomSwitch("Plexus Background", &g_showParticles);
         }
 
-        const char* themes[] = { "Aegle Classic", "Sakura Blossom", "Cyberpunk 2077", "Emerald Forest", "Deep Sea", "Legacy Pink" };
+        const char* themes[] = { "Amatayakul Red", "Aegle Classic", "Sakura Blossom", "Cyberpunk 2077", "Emerald Forest", "Deep Sea", "Legacy Pink" };
         int currentTheme = GUI::g_currentTheme;
         if (GUI::RenderCombo("Theme Preset", &currentTheme, themes, IM_ARRAYSIZE(themes))) {
             GUI::ApplyThemePreset(currentTheme);
@@ -1326,8 +1330,7 @@ void ClickGUI::RenderAuroraMenu(float screenWidth, float screenHeight) {
         ImGui::BeginChild("AuroraModuleList", ImVec2(size.x - sidebarWidth - 60.0f, size.y - 145.0f), false,
                           ImGuiWindowFlags_NoScrollbar);
         if (selectedCategory == 0) {
-            RenderModuleButton("Reach", &Reach::g_reachEnabled);
-            RenderModuleButton("Hitbox", &Hitbox::g_hitboxEnabled);
+            ImGui::TextDisabled("No combat modules available.");
         } else if (selectedCategory == 1) {
             RenderModuleButton("Watermark", &Watermark::g_showWatermark);
             RenderModuleButton("ArrayList", &ArrayList::g_enabled);
@@ -1340,15 +1343,12 @@ void ClickGUI::RenderAuroraMenu(float screenWidth, float screenHeight) {
             RenderModuleButton("FullBright", &FullBright::g_fullBrightEnabled);
             RenderModuleButton("MotionBlur", &MotionBlur::g_motionBlurEnabled);
         } else if (selectedCategory == 2) {
-            RenderModuleButton("AutoSprint", &AutoSprint::g_autoSprintEnabled);
-            RenderModuleButton("Glide", &Glide::g_glideEnabled);
-            RenderModuleButton("Fly", &Fly::g_flyEnabled);
-            RenderModuleButton("Timer", &Timer::g_timerEnabled);
+            RenderModuleButton("Toggle Sprint", &AutoSprint::g_autoSprintEnabled);
         } else if (selectedCategory == 3) {
             RenderModuleButton("UnlockFPS", &UnlockFPS::g_unlockFpsEnabled);
-            RenderModuleButton("AutoClicker", &AutoClicker::g_enabled);
             RenderModuleButton("Anti-AFK", &AntiAFK::g_enabled);
             RenderModuleButton("Screenshot", &Screenshot::g_enabled);
+            RenderModuleButton("NoHurtCam", &NoHurtCam::g_enabled);
         } else if (selectedCategory == 4) {
             Terminal::RenderConsole();
         } else if (selectedCategory == 5) {
@@ -1361,7 +1361,7 @@ void ClickGUI::RenderAuroraMenu(float screenWidth, float screenHeight) {
         ImGui::EndChild();
 
         ImGui::SetCursorPos(ImVec2(sidebarWidth + 30.0f, size.y - 31.0f));
-        ImGui::TextColored(ImVec4(0.34f, 0.43f, 0.49f, 1.0f), "Azyre / Aurora");
+        ImGui::TextColored(ImVec4(0.34f, 0.43f, 0.49f, 1.0f), "Amatayakul / Aurora");
         ImGui::SameLine(size.x - sidebarWidth - 120.0f);
         ImGui::TextColored(ImVec4(accent.x, accent.y, accent.z, 0.75f), "SYSTEM READY");
     }
@@ -1452,8 +1452,7 @@ void ClickGUI::RenderFigmaMenu(float screenWidth, float screenHeight) {
         ImGui::Separator();
 
         if (selectedCategory == 0) {
-            RenderModuleButton("Reach", &Reach::g_reachEnabled);
-            RenderModuleButton("Hitbox", &Hitbox::g_hitboxEnabled);
+            ImGui::TextDisabled("No combat modules available.");
         } else if (selectedCategory == 1) {
             RenderModuleButton("Watermark", &Watermark::g_showWatermark);
             RenderModuleButton("ArrayList", &ArrayList::g_enabled);
@@ -1466,15 +1465,12 @@ void ClickGUI::RenderFigmaMenu(float screenWidth, float screenHeight) {
             RenderModuleButton("FullBright", &FullBright::g_fullBrightEnabled);
             RenderModuleButton("MotionBlur", &MotionBlur::g_motionBlurEnabled);
         } else if (selectedCategory == 2) {
-            RenderModuleButton("AutoSprint", &AutoSprint::g_autoSprintEnabled);
-            RenderModuleButton("Glide", &Glide::g_glideEnabled);
-            RenderModuleButton("Fly", &Fly::g_flyEnabled);
-            RenderModuleButton("Timer", &Timer::g_timerEnabled);
+            RenderModuleButton("Toggle Sprint", &AutoSprint::g_autoSprintEnabled);
         } else if (selectedCategory == 3) {
             RenderModuleButton("UnlockFPS", &UnlockFPS::g_unlockFpsEnabled);
-            RenderModuleButton("AutoClicker", &AutoClicker::g_enabled);
             RenderModuleButton("Anti-AFK", &AntiAFK::g_enabled);
             RenderModuleButton("Screenshot", &Screenshot::g_enabled);
+            RenderModuleButton("NoHurtCam", &NoHurtCam::g_enabled);
         } else if (selectedCategory == 4) {
             Terminal::RenderConsole();
         } else if (selectedCategory == 5) {
@@ -1522,20 +1518,8 @@ void ClickGUI::RenderSeparatedMenu(float screenWidth, float screenHeight) {
         ? positionProgress
         : Animations::EaseInOutQuad(GUI::g_menuAnim);
 
-    // Background (Normal or Blur handled via DX11 before ImGui frame, here just overlay)
-    if (g_bgStyle == 0) {
-        // Normal: dark tinted overlay
-        ImU32 bgCol = IM_COL32(5, 5, 10, (int)(e * 180.0f));
-        ImGui::GetBackgroundDrawList()->AddRectFilled(ImVec2(0,0), ImVec2(screenWidth, screenHeight), bgCol);
-    } else {
-        // Blurred: just a very light tint on top of the already-blurred DX11 blit
-        ImU32 tint = IM_COL32(5, 5, 10, (int)(e * 60.0f));
-        ImGui::GetBackgroundDrawList()->AddRectFilled(ImVec2(0,0), ImVec2(screenWidth, screenHeight), tint);
-    }
-
-    if (g_showParticles) {
-        GUI::RenderParticles(ImGui::GetBackgroundDrawList(), ImVec2(0,0), ImVec2(screenWidth, screenHeight), e);
-    }
+    // Animated dark-red to black gradient background
+    GUI::RenderAnimatedGradient(ImGui::GetBackgroundDrawList(), ImVec2(0,0), ImVec2(screenWidth, screenHeight), e);
 
     // Column layout with vertical slide animation
     float colWidth   = 220.0f;
@@ -1552,11 +1536,6 @@ void ClickGUI::RenderSeparatedMenu(float screenWidth, float screenHeight) {
     const char* categories[] = { "Combat", "Movement", "Visuals", "Misc" };
 
     struct Toggles {
-        static void toggleReach()     { Reach::SetEnabled(Reach::g_reachEnabled); }
-        static void toggleHitbox()    { if (Hitbox::g_hitboxEnabled) Hitbox::Enable(); else Hitbox::Disable(); }
-        static void toggleTimer()     { if (Timer::g_timerEnabled)   Timer::Enable(); else   Timer::Disable(); }
-        static void toggleGlide()     { if (Glide::g_glideEnabled)   Glide::Enable(); else   Glide::Disable(); }
-        static void toggleFly()       { if (Fly::g_flyEnabled)       Fly::Enable(); else     Fly::Disable(); }
         static void toggleFullBright(){ if (FullBright::g_fullBrightEnabled) FullBright::Enable(); else FullBright::Disable(); }
         static void toggleFPSOverlay() {
             if (FPSOverlay::g_showFpsOverlay) {
@@ -1615,13 +1594,9 @@ void ClickGUI::RenderSeparatedMenu(float screenWidth, float screenHeight) {
 
             // Module buttons per category
             if (i == 0) { // Combat
-                RenderModuleButton("Reach",   &Reach::g_reachEnabled,  Toggles::toggleReach);
-                RenderModuleButton("Hitbox",  &Hitbox::g_hitboxEnabled, Toggles::toggleHitbox);
+                ImGui::TextDisabled("No combat modules available.");
             } else if (i == 1) { // Movement
-                RenderModuleButton("AutoSprint", &AutoSprint::g_autoSprintEnabled);
-                RenderModuleButton("Glide",       &Glide::g_glideEnabled, Toggles::toggleGlide);
-                RenderModuleButton("Fly",         &Fly::g_flyEnabled,     Toggles::toggleFly);
-                RenderModuleButton("Timer",       &Timer::g_timerEnabled, Toggles::toggleTimer);
+                RenderModuleButton("Toggle Sprint", &AutoSprint::g_autoSprintEnabled);
             } else if (i == 2) { // Visuals
                 RenderModuleButton("Watermark",   &Watermark::g_showWatermark);
                 RenderModuleButton("ArrayList",   &ArrayList::g_enabled);
@@ -1636,9 +1611,9 @@ void ClickGUI::RenderSeparatedMenu(float screenWidth, float screenHeight) {
                 RenderModuleButton("ClickGUI",    &ClickGUI::g_enabled, Toggles::toggleClickGUI);
             } else if (i == 3) { // Misc
                 RenderModuleButton("UnlockFPS", &UnlockFPS::g_unlockFpsEnabled);
-                RenderModuleButton("AutoClicker", &AutoClicker::g_enabled);
                 RenderModuleButton("Anti-AFK", &AntiAFK::g_enabled);
                 RenderModuleButton("Screenshot", &Screenshot::g_enabled);
+                RenderModuleButton("NoHurtCam", &NoHurtCam::g_enabled);
             }
 
             ImGui::Spacing();
@@ -1657,16 +1632,14 @@ void ClickGUI::RenderSeparatedMenu(float screenWidth, float screenHeight) {
 // ──────────────────────────────────────────────
 
 // True for modules whose settings are handled by RenderModuleSettings(). Modules
-// without settings (AutoSprint, FullBright) get a plain toggle and cannot expand.
+// without settings (Toggle Sprint, FullBright) get a plain toggle and cannot expand.
 static bool ModuleHasSettings(const char* name) {
-    return strcmp(name, "Reach") == 0 || strcmp(name, "Hitbox") == 0 ||
-           strcmp(name, "Timer") == 0 || strcmp(name, "Glide") == 0 ||
-           strcmp(name, "UnlockFPS") == 0 ||
+    return strcmp(name, "UnlockFPS") == 0 ||
            strcmp(name, "MotionBlur") == 0 || strcmp(name, "Watermark") == 0 ||
            strcmp(name, "ArrayList") == 0 || strcmp(name, "Render Info") == 0 ||
            strcmp(name, "Keystrokes") == 0 || strcmp(name, "CPS Counter") == 0 ||
            strcmp(name, "FPS Overlay") == 0 || strcmp(name, "Ping Counter") == 0 ||
-           strcmp(name, "ClickGUI") == 0 || strcmp(name, "AutoClicker") == 0 ||
+           strcmp(name, "ClickGUI") == 0 ||
            strcmp(name, "Anti-AFK") == 0 || strcmp(name, "Screenshot") == 0 ||
            strcmp(name, "Player Info") == 0;
 }
@@ -1805,18 +1778,7 @@ void ClickGUI::RenderModuleButton(const char* label, bool* enabledPtr, void (*to
 // Module inline settings
 // ──────────────────────────────────────────────
 void ClickGUI::RenderModuleSettings(const char* name, float /*colWidth*/) {
-    if (strcmp(name, "Reach") == 0) {
-        if (GUI::RenderSlider("Distance##R", &Reach::g_reachValue, 3.0f, 15.0f, "%.2f"))
-            Reach::UpdateValue(Reach::g_reachValue);
-    } else if (strcmp(name, "Hitbox") == 0) {
-        if (GUI::RenderSlider("Size##H", &Hitbox::g_hitboxValue, 0.6f, 10.0f, "%.2f"))
-            if (Hitbox::g_hitboxCave) memcpy((BYTE*)Hitbox::g_hitboxCave + 1, &Hitbox::g_hitboxValue, 4);
-    } else if (strcmp(name, "Timer") == 0) {
-        GUI::RenderSlider("Speed##T", &Timer::g_timerValue, 0.1f, 20.0f, "%.1fx");
-    } else if (strcmp(name, "Glide") == 0) {
-        if (GUI::RenderSlider("Fall Speed##G", &Glide::g_glideSpeed, -0.5f, 0.0f, "%.2f"))
-            if (Glide::g_glideEnabled) Glide::UpdateSpeed();
-    } else if (strcmp(name, "UnlockFPS") == 0) {
+    if (strcmp(name, "UnlockFPS") == 0) {
         GUI::RenderSlider("Limit##F", &UnlockFPS::g_fpsLimit, 0.0f, 1000.0f,
             UnlockFPS::g_fpsLimit <= 0.0f ? "Unlimited" : "%.0f");
     } else if (strcmp(name, "MotionBlur") == 0) {
@@ -1944,6 +1906,8 @@ void ClickGUI::RenderModuleSettings(const char* name, float /*colWidth*/) {
         ImGui::ColorEdit4("Name Color##PI", (float*)&PlayerInfo::g_nameColor, ImGuiColorEditFlags_NoInputs);
         ImGui::TextDisabled("Drag the HUD box in-game to reposition it.");
     } else if (strcmp(name, "ClickGUI") == 0) {
+        GUI::RenderKeybind("Menu Key##CG", &ClickGUI::g_bindKey);
+
         static const char* st[] = {"Regular","Separated","Rise","Lunar","Figma","Aurora"};
         GUI::RenderCombo("Style##CG", &ClickGUI::g_guiStyle, st, 6);
         static const char* bg[] = {"Normal Dark","Mica Blur"};
@@ -1957,14 +1921,9 @@ void ClickGUI::RenderModuleSettings(const char* name, float /*colWidth*/) {
         } else {
             GUI::RenderCustomSwitch("Plexus Background##CG", &ClickGUI::g_showParticles);
         }
-        const char* th[] = {"Aegle Classic","Sakura Blossom","Cyberpunk 2077","Emerald Forest","Deep Sea","Legacy Pink"};
+        const char* th[] = {"Amatayakul Red","Aegle Classic","Sakura Blossom","Cyberpunk 2077","Emerald Forest","Deep Sea","Legacy Pink"};
         int ct = GUI::g_currentTheme;
         if (GUI::RenderCombo("Theme##CG", &ct, th, 6)) GUI::ApplyThemePreset(ct);
-    } else if (strcmp(name, "AutoClicker") == 0) {
-        GUI::RenderSlider("CPS##AC",          &AutoClicker::g_cps,         1.0f, 30.0f, "%.1f");
-        GUI::RenderSlider("Random Range##AC", &AutoClicker::g_randomRange, 0.0f,  8.0f, "%.1f");
-        GUI::RenderCustomSwitch("Right Click##AC", &AutoClicker::g_rightClick);
-        GUI::RenderCustomSwitch("Hold Mode##AC",   &AutoClicker::g_holdMode);
     } else if (strcmp(name, "Anti-AFK") == 0) {
         GUI::RenderSlider("Interval (s)##AFK",  &AntiAFK::g_intervalSecs,    5.0f, 120.0f, "%.0f s");
         GUI::RenderSlider("Duration (ms)##AFK",  &AntiAFK::g_pressDurationMs, 50.0f, 500.0f, "%.0f ms");
@@ -2051,11 +2010,6 @@ static void RenderRiseModulesList(const char* query, const char* categoryFilter,
     };
     
     struct LocalToggles {
-        static void toggleReach()     { Reach::SetEnabled(Reach::g_reachEnabled); }
-        static void toggleHitbox()    { if (Hitbox::g_hitboxEnabled) Hitbox::Enable(); else Hitbox::Disable(); }
-        static void toggleTimer()     { if (Timer::g_timerEnabled)   Timer::Enable(); else   Timer::Disable(); }
-        static void toggleGlide()     { if (Glide::g_glideEnabled)   Glide::Enable(); else   Glide::Disable(); }
-        static void toggleFly()       { if (Fly::g_flyEnabled)       Fly::Enable(); else     Fly::Disable(); }
         static void toggleFullBright(){ if (FullBright::g_fullBrightEnabled) FullBright::Enable(); else FullBright::Disable(); }
         static void toggleFPSOverlay() {
             if (FPSOverlay::g_showFpsOverlay) {
@@ -2071,18 +2025,11 @@ static void RenderRiseModulesList(const char* query, const char* categoryFilter,
 
     // Static vector of functional modules only (no mock modules)
     static std::vector<ModuleEntry> modules = {
-        // Combat
-        { "Reach", "Combat", "Extends your attack reach / range on servers.", &Reach::g_reachEnabled, LocalToggles::toggleReach },
-        { "Hitbox", "Combat", "Expands client-side player hitboxes for easier hits.", &Hitbox::g_hitboxEnabled, LocalToggles::toggleHitbox },
-        
         // Movement
-        { "AutoSprint", "Movement", "Automatically sprints without pressing the sprint key.", &AutoSprint::g_autoSprintEnabled, nullptr },
-        { "Glide", "Movement", "Clamps your falling velocity for a slow, smooth glide.", &Glide::g_glideEnabled, LocalToggles::toggleGlide },
-        { "Fly", "Movement", "Disables the game's flight check for creative fly.", &Fly::g_flyEnabled, LocalToggles::toggleFly },
-        { "Timer", "Movement", "Accelerates or decelerates the game's internal speed.", &Timer::g_timerEnabled, LocalToggles::toggleTimer },
+        { "Toggle Sprint", "Movement", "Toggle sprint with memory patch. Shows sprinting text.", &AutoSprint::g_autoSprintEnabled, nullptr },
         
         // Render
-        { "Watermark", "Render", "Renders the aesthetic Azyre watermark overlay.", &Watermark::g_showWatermark, nullptr },
+        { "Watermark", "Render", "Renders the aesthetic Amatayakul watermark overlay.", &Watermark::g_showWatermark, nullptr },
         { "ArrayList", "Render", "Displays active client modules in a clean list.", &ArrayList::g_enabled, nullptr },
         { "Render Info", "Render", "Shows useful stats (FPS, Ping, coordinates, etc.).", &RenderInfo::g_showRenderInfo, nullptr },
         { "Keystrokes", "Render", "Displays WASD and mouse buttons pressed on screen.", &Keystrokes::g_showKeystrokes, nullptr },
@@ -2095,12 +2042,11 @@ static void RenderRiseModulesList(const char* query, const char* categoryFilter,
         { "ClickGUI", "Render", "Toggles and configures this ClickGUI overlay.", &ClickGUI::g_enabled, LocalToggles::toggleClickGUI },
         
         // Exploit
-        { "UnlockFPS", "Exploit", "Removes default FPS caps to run at maximum refresh.", &UnlockFPS::g_unlockFpsEnabled, nullptr },
-        { "AutoClicker", "Exploit", "Automatically clicks your mouse at a configurable speed.", &AutoClicker::g_enabled, nullptr },
-        { "Anti-AFK", "Exploit", "Performs background actions to prevent idle disconnects.", &AntiAFK::g_enabled, nullptr },
-        { "Screenshot", "Exploit", "Takes a screenshot of the game using the set hotkey.", &Screenshot::g_enabled, nullptr }
+        { "UnlockFPS", "Exploit", "Removes default FPS caps to run at maximum refresh.", &UnlockFPS::g_unlockFpsEnabled, nullptr },        { "Anti-AFK", "Exploit", "Performs background actions to prevent idle disconnects.", &AntiAFK::g_enabled, nullptr },
+        { "Screenshot", "Exploit", "Takes a screenshot of the game using the set hotkey.", &Screenshot::g_enabled, nullptr },
+        { "NoHurtCam", "Exploit", "Removes the hurt camera shake effect when taking damage.", &NoHurtCam::g_enabled, nullptr }
     };
-    
+
     static std::map<std::string, bool> expandedCards;
     static std::map<std::string, float> expandAnim;
     static std::map<std::string, float> measuredH;
@@ -2157,7 +2103,6 @@ static void RenderRiseModulesList(const char* query, const char* categoryFilter,
             else if (strcmp(module.name.c_str(), "CPS Counter") == 0)  capH = 110.0f * sc;
             else if (strcmp(module.name.c_str(), "Render Info") == 0)  capH = 110.0f * sc;
             else if (strcmp(module.name.c_str(), "Ping Counter") == 0) capH = 110.0f * sc;
-            else if (strcmp(module.name.c_str(), "AutoClicker") == 0)  capH = 135.0f * sc;
             else if (strcmp(module.name.c_str(), "Anti-AFK") == 0)     capH = 135.0f * sc;
             else if (strcmp(module.name.c_str(), "Screenshot") == 0)   capH = 110.0f * sc;
             float natH = measuredH[module.name];
@@ -2265,18 +2210,8 @@ void ClickGUI::RenderRiseMenu(float screenWidth, float screenHeight) {
         : Animations::EaseInOutQuad(GUI::g_menuAnim);
     ImGui::PushStyleVar(ImGuiStyleVar_Alpha, e);
     
-    // Background blits
-    if (g_bgStyle == 0) {
-        ImU32 bgCol = IM_COL32(5, 5, 10, (int)(e * 180.0f));
-        ImGui::GetBackgroundDrawList()->AddRectFilled(ImVec2(0, 0), ImVec2(screenWidth, screenHeight), bgCol);
-    } else {
-        ImU32 tint = IM_COL32(5, 5, 10, (int)(e * 60.0f));
-        ImGui::GetBackgroundDrawList()->AddRectFilled(ImVec2(0, 0), ImVec2(screenWidth, screenHeight), tint);
-    }
-    
-    if (g_showParticles) {
-        GUI::RenderParticles(ImGui::GetBackgroundDrawList(), ImVec2(0, 0), ImVec2(screenWidth, screenHeight), e);
-    }
+    // Dark background tint
+    ImGui::GetBackgroundDrawList()->AddRectFilled(ImVec2(0, 0), ImVec2(screenWidth, screenHeight), IM_COL32(3, 3, 5, (int)(e * 220.0f)));
     
     // Slide animation without changing the window size.
     float sc = 1.0f;
@@ -2297,12 +2232,15 @@ void ClickGUI::RenderRiseMenu(float screenWidth, float screenHeight) {
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 24.0f * sc);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
-    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.05f, 0.05f, 0.07f, 0.92f));
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0, 0, 0, 0));
     
     if (ImGui::Begin("RiseClickGUIWindow", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar)) {
         ImVec2 wPos = ImGui::GetWindowPos();
         ImVec2 wSize = ImGui::GetWindowSize();
         ImDrawList* draw = ImGui::GetWindowDrawList();
+        
+        // Animated gradient inside the window
+        GUI::RenderAnimatedGradient(draw, wPos, wSize, e);
         
         // Theme color accent matching
         ImVec4 accentV = GUI::g_colorAccent;
@@ -2318,8 +2256,8 @@ void ClickGUI::RenderRiseMenu(float screenWidth, float screenHeight) {
         
         // Render Rise 6.0 Title at top left (matches selected theme accent color for "6.0")
         ImGui::PushFont(GUI::g_fontH1 ? GUI::g_fontH1 : ImGui::GetFont());
-        ImVec2 riseSize = ImGui::CalcTextSize("Azyre");
-        draw->AddText(wPos + ImVec2(30.0f * sc, 25.0f * sc), ImColor(240, 240, 245), "Azyre");
+        ImVec2 riseSize = ImGui::CalcTextSize("Amatayakul");
+        draw->AddText(wPos + ImVec2(30.0f * sc, 25.0f * sc), ImColor(240, 240, 245), "Amatayakul");
         ImGui::PopFont();
         
         ImGui::PushFont(GUI::g_fontDefault);
@@ -2470,18 +2408,19 @@ void ClickGUI::RenderRiseMenu(float screenWidth, float screenHeight) {
                 ImGui::SetCursorPos(ImVec2(10.0f * sc, 55.0f * sc));
                 ImGui::BeginChild("RiseThemesScroll", ImVec2(contentSize.x - 20.0f * sc, contentSize.y - 65.0f * sc), false, ImGuiWindowFlags_None);
                 {
-                    const char* themeNames[] = { "Aegle Classic", "Sakura Blossom", "Cyberpunk 2077", "Emerald Forest", "Deep Sea", "Legacy Pink" };
+                    const char* themeNames[] = { "Amatayakul Red", "Aegle Classic", "Sakura Blossom", "Cyberpunk 2077", "Emerald Forest", "Deep Sea", "Legacy Pink" };
                     const char* themeDescs[] = {
+                        "Bold red accent with dark gradient background.",
                         "The iconic dark theme with white accents.",
                         "A soft, pleasant cherry blossom theme with pink gradients.",
-                        "High-contrast cyberpunk neon yellow and dark gray theme.",
+                        "High-contrast cyberpunk neon cyan and dark gray theme.",
                         "Calming green theme reminiscent of forest canopies.",
                         "Rich deep ocean theme with blue and teal highlights.",
                         "The original dark theme with pink and magenta accents."
                     };
                     
                     float themeWidth = ImGui::GetContentRegionAvail().x - 15.0f;
-                    for (int t = 0; t < 6; t++) {
+                    for (int t = 0; t < GUI::Theme_Max; t++) {
                         ImGui::PushID(t);
                         ImVec2 tStart = ImGui::GetCursorScreenPos();
                         bool activeTheme = (GUI::g_currentTheme == t);
@@ -2546,12 +2485,13 @@ void ClickGUI::RenderRiseMenu(float screenWidth, float screenHeight) {
                     ImGui::Separator();
                     ImGui::Spacing();
                     
-                    ImGui::Text("Active Theme: %s", (GUI::g_currentTheme == 0) ? "Aegle Classic" :
-                                                    (GUI::g_currentTheme == 1) ? "Sakura Blossom" :
-                                                    (GUI::g_currentTheme == 2) ? "Cyberpunk 2077" :
-                                                    (GUI::g_currentTheme == 3) ? "Emerald Forest" :
-                                                    (GUI::g_currentTheme == 4) ? "Deep Sea" : "Legacy Pink");
-                    ImGui::Text("Client Version: Azyre v1.0.9");
+                    ImGui::Text("Active Theme: %s", (GUI::g_currentTheme == GUI::Theme_AmatayakulRed) ? "Amatayakul Red" :
+                                                    (GUI::g_currentTheme == GUI::Theme_AegleClassic) ? "Aegle Classic" :
+                                                    (GUI::g_currentTheme == GUI::Theme_SakuraBlossom) ? "Sakura Blossom" :
+                                                    (GUI::g_currentTheme == GUI::Theme_Cyberpunk) ? "Cyberpunk 2077" :
+                                                    (GUI::g_currentTheme == GUI::Theme_EmeraldForest) ? "Emerald Forest" :
+                                                    (GUI::g_currentTheme == GUI::Theme_DeepSea) ? "Deep Sea" : "Legacy Pink");
+                    ImGui::Text("Client Version: Amatayakul");
                 }
                 ImGui::EndChild();
             }
@@ -2651,11 +2591,6 @@ static void RenderLunarModulesList(const char* categoryFilter, const char* query
         void (*callback)();
     };
     struct LLocal {
-        static void toggleReach()      { Reach::SetEnabled(Reach::g_reachEnabled); }
-        static void toggleHitbox()     { if (Hitbox::g_hitboxEnabled) Hitbox::Enable(); else Hitbox::Disable(); }
-        static void toggleTimer()      { if (Timer::g_timerEnabled)   Timer::Enable(); else   Timer::Disable(); }
-        static void toggleGlide()     { if (Glide::g_glideEnabled)   Glide::Enable(); else   Glide::Disable(); }
-        static void toggleFly()       { if (Fly::g_flyEnabled)       Fly::Enable(); else     Fly::Disable(); }
         static void toggleFullBright() { if (FullBright::g_fullBrightEnabled) FullBright::Enable(); else FullBright::Disable(); }
         static void toggleFPSOverlay() {
             if (FPSOverlay::g_showFpsOverlay) {
@@ -2670,16 +2605,10 @@ static void RenderLunarModulesList(const char* categoryFilter, const char* query
     };
 
     static const std::vector<LModule> modules = {
-        // Combat
-        { "Reach", "R", "Combat", "Extends your attack reach / range on servers.", &Reach::g_reachEnabled, LLocal::toggleReach },
-        { "Hitbox", "H", "Combat", "Expands client-side player hitboxes for easier hits.", &Hitbox::g_hitboxEnabled, LLocal::toggleHitbox },
         // Movement
-        { "AutoSprint", "A", "Movement", "Automatically sprints without pressing the sprint key.", &AutoSprint::g_autoSprintEnabled, nullptr },
-        { "Glide", "G", "Movement", "Clamps your falling velocity for a slow, smooth glide.", &Glide::g_glideEnabled, LLocal::toggleGlide },
-        { "Fly", "F", "Movement", "Disables the game's flight check for creative fly.", &Fly::g_flyEnabled, LLocal::toggleFly },
-        { "Timer", "T", "Movement", "Accelerates or decelerates the game's internal speed.", &Timer::g_timerEnabled, LLocal::toggleTimer },
+        { "Toggle Sprint", "A", "Movement", "Toggle sprint with memory patch. Shows sprinting text.", &AutoSprint::g_autoSprintEnabled, nullptr },
         // Render
-        { "Watermark", "W", "Render", "Renders the aesthetic Azyre watermark overlay.", &Watermark::g_showWatermark, nullptr },
+        { "Watermark", "W", "Render", "Renders the aesthetic Amatayakul watermark overlay.", &Watermark::g_showWatermark, nullptr },
         { "ArrayList", "L", "Render", "Displays active client modules in a clean list.", &ArrayList::g_enabled, nullptr },
         { "Render Info", "I", "Render", "Shows useful stats (FPS, Ping, coordinates, etc.).", &RenderInfo::g_showRenderInfo, nullptr },
         { "Keystrokes", "K", "Render", "Displays WASD and mouse buttons pressed on screen.", &Keystrokes::g_showKeystrokes, nullptr },
@@ -2692,9 +2621,9 @@ static void RenderLunarModulesList(const char* categoryFilter, const char* query
         { "ClickGUI", "G", "Render", "Toggles and configures this ClickGUI overlay.", &ClickGUI::g_enabled, LLocal::toggleClickGUI },
         // Exploit
         { "UnlockFPS", "U", "Exploit", "Removes default FPS caps to run at maximum refresh.", &UnlockFPS::g_unlockFpsEnabled, nullptr },
-        { "AutoClicker", "C", "Exploit", "Automatically clicks your mouse at a configurable speed.", &AutoClicker::g_enabled, nullptr },
         { "Anti-AFK", "K", "Exploit", "Performs background actions to prevent idle disconnects.", &AntiAFK::g_enabled, nullptr },
-        { "Screenshot", "S", "Exploit", "Takes a screenshot of the game using the set hotkey.", &Screenshot::g_enabled, nullptr }
+        { "Screenshot", "S", "Exploit", "Takes a screenshot of the game using the set hotkey.", &Screenshot::g_enabled, nullptr },
+        { "NoHurtCam", "H", "Exploit", "Removes the hurt camera shake effect when taking damage.", &NoHurtCam::g_enabled, nullptr }
     };
 
     auto matchesQuery = [](const std::string& text, const std::string& q) -> bool {
@@ -2878,18 +2807,8 @@ void ClickGUI::RenderLunarMenu(float screenWidth, float screenHeight) {
         : Animations::EaseInOutQuad(GUI::g_menuAnim);
     ImGui::PushStyleVar(ImGuiStyleVar_Alpha, e);
 
-    // Background blits
-    if (g_bgStyle == 0) {
-        ImU32 bgCol = IM_COL32(5, 5, 10, (int)(e * 180.0f));
-        ImGui::GetBackgroundDrawList()->AddRectFilled(ImVec2(0, 0), ImVec2(screenWidth, screenHeight), bgCol);
-    } else {
-        ImU32 tint = IM_COL32(5, 5, 10, (int)(e * 60.0f));
-        ImGui::GetBackgroundDrawList()->AddRectFilled(ImVec2(0, 0), ImVec2(screenWidth, screenHeight), tint);
-    }
-
-    if (g_showParticles) {
-        GUI::RenderParticles(ImGui::GetBackgroundDrawList(), ImVec2(0, 0), ImVec2(screenWidth, screenHeight), e);
-    }
+    // Dark background tint
+    ImGui::GetBackgroundDrawList()->AddRectFilled(ImVec2(0, 0), ImVec2(screenWidth, screenHeight), IM_COL32(3, 3, 5, (int)(e * 220.0f)));
 
     // Slide animation without changing the window size.
     float sc = 1.0f;
@@ -2911,7 +2830,7 @@ void ClickGUI::RenderLunarMenu(float screenWidth, float screenHeight) {
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 10.0f * sc);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
-    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.070f, 0.075f, 0.088f, 0.96f));
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0, 0, 0, 0));
     ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(0.16f, 0.17f, 0.20f, 0.7f));
 
     if (ImGui::Begin("LunarClickGUIWindow", nullptr,
@@ -2920,6 +2839,10 @@ void ClickGUI::RenderLunarMenu(float screenWidth, float screenHeight) {
         ImVec2 wPos = ImGui::GetWindowPos();
         ImVec2 wSize = ImGui::GetWindowSize();
         ImDrawList* draw = ImGui::GetWindowDrawList();
+        
+        // Animated gradient inside the window
+        GUI::RenderAnimatedGradient(draw, wPos, wSize, e);
+        
         ImVec4 accentV = GUI::g_colorAccent;
         ImU32 accentCol = ImGui::ColorConvertFloat4ToU32(accentV);
 

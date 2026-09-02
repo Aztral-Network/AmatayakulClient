@@ -11,6 +11,7 @@ Under an4rch Development Public Source License 1.0
 class ClickGUI {
 public:
     static bool g_enabled;
+    static int g_bindKey;
     static int g_guiStyle;        // 0 = Regular, 1 = Separated, 2 = Rise, 3 = Lunar, 4 = Figma, 5 = Aurora
     static bool g_showParticles;
     static bool g_showRiseBackground;

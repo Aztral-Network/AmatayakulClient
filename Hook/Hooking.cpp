@@ -8,9 +8,6 @@ Under an4rch Development Public Source License 1.0
 #include "../Modules/Visuals/PingCounter/PingCounter.hpp"
 #include "../Modules/Visuals/PlayerInfo/PlayerInfo.hpp"
 #include "../Modules/Misc/UnlockFPS/UnlockFPS.hpp"
-#include "../Modules/Movement/Timer/Timer.hpp"
-#include "../Modules/Movement/Glide/Glide.hpp"
-#include "../Modules/Movement/Fly/Fly.hpp"
 #include "../Modules/Splash/Splash.hpp"
 #include "../Networking/Client/IRCClient.hpp"
 #include "../Core/Present.hpp"
@@ -123,12 +120,9 @@ static DWORD WINAPI UnloadThread(LPVOID lpParam) {
     ClickGUI::ShutdownBlurShaders();
     PingCounter::Shutdown();
     PlayerInfo::Shutdown();
-    Glide::Shutdown();                                   // Restore original memory
-    Fly::Shutdown();                                     // Restore original memory
     Splash::Shutdown();                                  // Release splash texture
 
     // Stop background threads that would crash after the module is unloaded
-    Timer::Disable();                                    // Timer memory-write thread
     IRCClient::GetInstance().Disconnect(false);          // IRC read thread (if connected)
 
     // ImGui cleanup

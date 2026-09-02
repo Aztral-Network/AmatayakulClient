@@ -2,12 +2,7 @@
 Under an4rch Development Public Source License 1.0
 */
 
-#include "Combat/Reach/Reach.hpp"
-#include "Combat/Hitbox/Hitbox.hpp"
 #include "Movement/AutoSprint/AutoSprint.hpp"
-#include "Movement/Glide/Glide.hpp"
-#include "Movement/Fly/Fly.hpp"
-#include "Movement/Timer/Timer.hpp"
 #include "Visuals/FullBright/FullBright.hpp"
 #include "Visuals/RenderInfo/RenderInfo.hpp"
 #include "Terminal/Terminal.hpp"
@@ -20,8 +15,8 @@ Under an4rch Development Public Source License 1.0
 #include "Visuals/PingCounter/PingCounter.hpp"
 #include "Visuals/PlayerInfo/PlayerInfo.hpp"
 #include "Misc/UnlockFPS/UnlockFPS.hpp"
-#include "Misc/AutoClicker/AutoClicker.hpp"
 #include "Misc/AntiAFK/AntiAFK.hpp"
+#include "Misc/NoHurtCam/NoHurtCam.hpp"
 #include "Misc/Screenshot/Screenshot.hpp"
 #include "Info/Info.hpp"
 #include "Visuals/ClickGUI/ClickGUI.hpp"

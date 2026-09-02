@@ -379,7 +379,7 @@ void IRCClient::Run() {
     if (!password.empty())
         SendRaw("PASS " + password);
     SendRaw("NICK " + nick);
-    SendRaw("USER " + nick + " 0 * :Azyre IRC");
+    SendRaw("USER " + nick + " 0 * :Amatayakul IRC");
 
     // 6. Read loop
     char    buf[4096];

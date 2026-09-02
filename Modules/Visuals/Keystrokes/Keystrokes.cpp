@@ -86,6 +86,9 @@ int Keystrokes::g_lmbCps = 0;
 int Keystrokes::g_rmbCps = 0;
 bool Keystrokes::g_prevLmbPressed = false;
 bool Keystrokes::g_prevRmbPressed = false;
+bool Keystrokes::g_countXUAsClicks = false;
+bool Keystrokes::g_prevXPressed = false;
+bool Keystrokes::g_prevUPressed = false;
 std::string Keystrokes::g_fontName = "Default";
 
 
@@ -171,6 +174,14 @@ void Keystrokes::RenderDisplay(float sw, float sh) {
             (GetAsyncKeyState(VK_RBUTTON) & 0x8000) != 0,
             (GetAsyncKeyState(VK_SPACE) & 0x8000) != 0
         };
+        // Map X -> LMB and U -> RMB visual state when enabled
+        if (g_countXUAsClicks) {
+            if ((GetAsyncKeyState('X') & 0x8000) != 0) handlerRes[4] = true;
+            if ((GetAsyncKeyState('U') & 0x8000) != 0) handlerRes[5] = true;
+        }
+        // Alt+X / Alt+U always trigger the visual state
+        if ((GetAsyncKeyState(VK_MENU) & 0x8000) && (GetAsyncKeyState('X') & 0x8000)) handlerRes[4] = true;
+        if ((GetAsyncKeyState(VK_MENU) & 0x8000) && (GetAsyncKeyState('U') & 0x8000)) handlerRes[5] = true;
 
         // Update glow modifier based on key state
         for (int i = 0; i < 7; i++) {
@@ -197,23 +208,21 @@ void Keystrokes::RenderDisplay(float sw, float sh) {
 
         float easedAnim = Animations::EaseOutExpo(g_keystrokesAnim);
         float keystrokesAlpha = easedAnim * 255.0f;
+        float ksScale = g_keystrokesHud->scale;
         
         // Keystrokes layout size calculation
-        float scaledSize = 130.0f * g_keystrokesUIScale;
-        float keySpacing = g_keystrokesKeySpacing * g_keystrokesUIScale;
-        float keyHeight = 38.0f * g_keystrokesUIScale;
-        float padding = 6.0f * g_keystrokesUIScale;
+        float scaledSize = 130.0f * (g_keystrokesUIScale * ksScale);
+        float keySpacing = g_keystrokesKeySpacing * (g_keystrokesUIScale * ksScale);
+        float keyHeight = 38.0f * (g_keystrokesUIScale * ksScale);
+        float padding = 6.0f * (g_keystrokesUIScale * ksScale);
         
-        float calculatedHeight = padding + keyHeight + keySpacing + keyHeight; // W + ASD
-        if (g_keystrokesShowMouseButtons) {
-            calculatedHeight += keySpacing + keyHeight;
-        }
-        if (g_keystrokesShowSpacebar) {
-            calculatedHeight += keySpacing + (keyHeight * 0.7f); // Spacebar height is 0.7 * keyHeight
-        }
-        calculatedHeight += padding; // Bottom padding
+        int numRows = 2; // W and ASD always shown
+        if (g_keystrokesShowMouseButtons) numRows++;
+        if (g_keystrokesShowSpacebar) numRows++;
+        
+        float totalHeight = (padding * 2.0f) + (numRows * keyHeight) + ((numRows - 1) * keySpacing);
 
-        ImVec2 keystrokesSize = ImVec2(scaledSize, calculatedHeight);
+        ImVec2 keystrokesSize = ImVec2(scaledSize, totalHeight);
         g_keystrokesHud->size = keystrokesSize;
         
         // Initialize position on first draw
@@ -243,9 +252,9 @@ void Keystrokes::RenderDisplay(float sw, float sh) {
             float baseX = finalPos.x;
             float baseY = finalPos.y;
             float containerWidth = scaledSize;
-            float padding = 6.0f * g_keystrokesUIScale;
-            float rounding = g_keystrokesRounding * g_keystrokesUIScale;
-            float textShadowOffset = g_keystrokesTextShadowOffset * g_keystrokesUIScale * 10.0f;
+            float padding = 6.0f * (g_keystrokesUIScale * ksScale);
+            float rounding = g_keystrokesRounding * (g_keystrokesUIScale * ksScale);
+            float textShadowOffset = g_keystrokesTextShadowOffset * (g_keystrokesUIScale * ksScale) * 10.0f;
             
             // Apply blur effect to background if enabled
             if (g_keystrokesShowBg && g_keystrokesBlurEffect) {
@@ -254,7 +263,7 @@ void Keystrokes::RenderDisplay(float sw, float sh) {
             
             // Draw background shadow if enabled
             if (g_keystrokesShowBg && g_keystrokesRectShadow) {
-                float shadowOffset = g_keystrokesRectShadowOffset * g_keystrokesUIScale * 10.0f;
+                float shadowOffset = g_keystrokesRectShadowOffset * (g_keystrokesUIScale * ksScale) * 10.0f;
                 keystrokesDraw->AddRectFilled(
                     ImVec2(finalPos.x + shadowOffset, finalPos.y + shadowOffset),
                     ImVec2(finalPos.x + keystrokesSize.x + shadowOffset, finalPos.y + keystrokesSize.y + shadowOffset),
@@ -288,12 +297,12 @@ void Keystrokes::RenderDisplay(float sw, float sh) {
                 
                 // Glow for disabled state
                 if (g_keystrokesGlow && g_keystrokesGlowModifier[0] > 0.05f) {
-                    DrawKeyGlow(keystrokesDraw, wPos, ImVec2(wWidth, keyHeight), rounding, g_keystrokesGlowColor, g_keystrokesGlowModifier[0], g_keystrokesGlowAmount * 0.25f * g_keystrokesUIScale, easedAnim);
+                    DrawKeyGlow(keystrokesDraw, wPos, ImVec2(wWidth, keyHeight), rounding, g_keystrokesGlowColor, g_keystrokesGlowModifier[0], g_keystrokesGlowAmount * 0.25f * (g_keystrokesUIScale * ksScale), easedAnim);
                 }
                 
                 // Glow for enabled state
                 if (g_keystrokesGlowEnabled && wPressed && g_keystrokesGlowModifier[0] > 0.05f) {
-                    DrawKeyGlow(keystrokesDraw, wPos, ImVec2(wWidth, keyHeight), rounding, g_keystrokesGlowEnabledColor, g_keystrokesGlowModifier[0], g_keystrokesGlowEnabledAmount * 0.25f * g_keystrokesUIScale, easedAnim);
+                    DrawKeyGlow(keystrokesDraw, wPos, ImVec2(wWidth, keyHeight), rounding, g_keystrokesGlowEnabledColor, g_keystrokesGlowModifier[0], g_keystrokesGlowEnabledAmount * 0.25f * (g_keystrokesUIScale * ksScale), easedAnim);
                 }
                 
                 keystrokesDraw->AddRectFilled(wPos, ImVec2(wPos.x + wWidth, wPos.y + keyHeight), wBgCol, rounding);
@@ -301,9 +310,9 @@ void Keystrokes::RenderDisplay(float sw, float sh) {
                     keystrokesDraw->AddRect(wPos, ImVec2(wPos.x + wWidth, wPos.y + keyHeight), ImGui::GetColorU32(g_keystrokesBorderColor), rounding, 0, g_keystrokesBorderWidth);
                 }
                 
-                float textPosX = wPos.x + (12.0f * g_keystrokesUIScale) + (g_keystrokesTextXOffset * g_keystrokesUIScale);
-                float textPosY = wPos.y + (8.0f * g_keystrokesUIScale) + (g_keystrokesTextYOffset * g_keystrokesUIScale);
-                float wasdTextScale = 16.0f * g_keystrokesUIScale * g_keystrokesTextScale;
+                float textPosX = wPos.x + (12.0f * (g_keystrokesUIScale * ksScale)) + (g_keystrokesTextXOffset * (g_keystrokesUIScale * ksScale));
+                float textPosY = wPos.y + (8.0f * (g_keystrokesUIScale * ksScale)) + (g_keystrokesTextYOffset * (g_keystrokesUIScale * ksScale));
+                float wasdTextScale = 16.0f * (g_keystrokesUIScale * ksScale) * g_keystrokesTextScale;
                 
                 if (g_keystrokesTextShadow) {
                     keystrokesDraw->AddText(keystrokesFont, wasdTextScale, ImVec2(textPosX + textShadowOffset, textPosY + textShadowOffset), ImGui::GetColorU32(g_keystrokesShadowStates[0]), g_keystrokesWText.c_str());
@@ -317,11 +326,11 @@ void Keystrokes::RenderDisplay(float sw, float sh) {
                 ImU32 aBgCol = ImGui::GetColorU32(g_keystrokesStates[1]);
                 
                 if (g_keystrokesGlow && g_keystrokesGlowModifier[1] > 0.05f) {
-                    DrawKeyGlow(keystrokesDraw, aPos, ImVec2(asdWidth, keyHeight), rounding, g_keystrokesGlowColor, g_keystrokesGlowModifier[1], g_keystrokesGlowAmount * 0.25f * g_keystrokesUIScale, easedAnim);
+                    DrawKeyGlow(keystrokesDraw, aPos, ImVec2(asdWidth, keyHeight), rounding, g_keystrokesGlowColor, g_keystrokesGlowModifier[1], g_keystrokesGlowAmount * 0.25f * (g_keystrokesUIScale * ksScale), easedAnim);
                 }
                 
                 if (g_keystrokesGlowEnabled && aPressed && g_keystrokesGlowModifier[1] > 0.05f) {
-                    DrawKeyGlow(keystrokesDraw, aPos, ImVec2(asdWidth, keyHeight), rounding, g_keystrokesGlowEnabledColor, g_keystrokesGlowModifier[1], g_keystrokesGlowEnabledAmount * 0.25f * g_keystrokesUIScale, easedAnim);
+                    DrawKeyGlow(keystrokesDraw, aPos, ImVec2(asdWidth, keyHeight), rounding, g_keystrokesGlowEnabledColor, g_keystrokesGlowModifier[1], g_keystrokesGlowEnabledAmount * 0.25f * (g_keystrokesUIScale * ksScale), easedAnim);
                 }
                 
                 keystrokesDraw->AddRectFilled(aPos, ImVec2(aPos.x + asdWidth, aPos.y + keyHeight), aBgCol, rounding);
@@ -329,9 +338,9 @@ void Keystrokes::RenderDisplay(float sw, float sh) {
                     keystrokesDraw->AddRect(aPos, ImVec2(aPos.x + asdWidth, aPos.y + keyHeight), ImGui::GetColorU32(g_keystrokesBorderColor), rounding, 0, g_keystrokesBorderWidth);
                 }
                 
-                float aTextPosX = aPos.x + (10.0f * g_keystrokesUIScale) + (g_keystrokesTextXOffset * g_keystrokesUIScale);
-                float aTextPosY = aPos.y + (6.0f * g_keystrokesUIScale) + (g_keystrokesTextYOffset * g_keystrokesUIScale);
-                float asdTextScale = 18.0f * g_keystrokesUIScale * g_keystrokesTextScale;
+                float aTextPosX = aPos.x + (10.0f * (g_keystrokesUIScale * ksScale)) + (g_keystrokesTextXOffset * (g_keystrokesUIScale * ksScale));
+                float aTextPosY = aPos.y + (6.0f * (g_keystrokesUIScale * ksScale)) + (g_keystrokesTextYOffset * (g_keystrokesUIScale * ksScale));
+                float asdTextScale = 18.0f * (g_keystrokesUIScale * ksScale) * g_keystrokesTextScale;
                 
                 if (g_keystrokesTextShadow) {
                     keystrokesDraw->AddText(keystrokesFont, asdTextScale, ImVec2(aTextPosX + textShadowOffset, aTextPosY + textShadowOffset), ImGui::GetColorU32(g_keystrokesShadowStates[1]), g_keystrokesAText.c_str());
@@ -343,11 +352,11 @@ void Keystrokes::RenderDisplay(float sw, float sh) {
                 ImU32 sBgCol = ImGui::GetColorU32(g_keystrokesStates[2]);
                 
                 if (g_keystrokesGlow && g_keystrokesGlowModifier[2] > 0.05f) {
-                    DrawKeyGlow(keystrokesDraw, sPos, ImVec2(asdWidth, keyHeight), rounding, g_keystrokesGlowColor, g_keystrokesGlowModifier[2], g_keystrokesGlowAmount * 0.25f * g_keystrokesUIScale, easedAnim);
+                    DrawKeyGlow(keystrokesDraw, sPos, ImVec2(asdWidth, keyHeight), rounding, g_keystrokesGlowColor, g_keystrokesGlowModifier[2], g_keystrokesGlowAmount * 0.25f * (g_keystrokesUIScale * ksScale), easedAnim);
                 }
                 
                 if (g_keystrokesGlowEnabled && sPressed && g_keystrokesGlowModifier[2] > 0.05f) {
-                    DrawKeyGlow(keystrokesDraw, sPos, ImVec2(asdWidth, keyHeight), rounding, g_keystrokesGlowEnabledColor, g_keystrokesGlowModifier[2], g_keystrokesGlowEnabledAmount * 0.25f * g_keystrokesUIScale, easedAnim);
+                    DrawKeyGlow(keystrokesDraw, sPos, ImVec2(asdWidth, keyHeight), rounding, g_keystrokesGlowEnabledColor, g_keystrokesGlowModifier[2], g_keystrokesGlowEnabledAmount * 0.25f * (g_keystrokesUIScale * ksScale), easedAnim);
                 }
                 
                 keystrokesDraw->AddRectFilled(sPos, ImVec2(sPos.x + asdWidth, sPos.y + keyHeight), sBgCol, rounding);
@@ -355,8 +364,8 @@ void Keystrokes::RenderDisplay(float sw, float sh) {
                     keystrokesDraw->AddRect(sPos, ImVec2(sPos.x + asdWidth, sPos.y + keyHeight), ImGui::GetColorU32(g_keystrokesBorderColor), rounding, 0, g_keystrokesBorderWidth);
                 }
                 
-                float sTextPosX = sPos.x + (10.0f * g_keystrokesUIScale) + (g_keystrokesTextXOffset * g_keystrokesUIScale);
-                float sTextPosY = sPos.y + (6.0f * g_keystrokesUIScale) + (g_keystrokesTextYOffset * g_keystrokesUIScale);
+                float sTextPosX = sPos.x + (10.0f * (g_keystrokesUIScale * ksScale)) + (g_keystrokesTextXOffset * (g_keystrokesUIScale * ksScale));
+                float sTextPosY = sPos.y + (6.0f * (g_keystrokesUIScale * ksScale)) + (g_keystrokesTextYOffset * (g_keystrokesUIScale * ksScale));
                 
                 if (g_keystrokesTextShadow) {
                     keystrokesDraw->AddText(keystrokesFont, asdTextScale, ImVec2(sTextPosX + textShadowOffset, sTextPosY + textShadowOffset), ImGui::GetColorU32(g_keystrokesShadowStates[2]), g_keystrokesSText.c_str());
@@ -368,11 +377,11 @@ void Keystrokes::RenderDisplay(float sw, float sh) {
                 ImU32 dBgCol = ImGui::GetColorU32(g_keystrokesStates[3]);
                 
                 if (g_keystrokesGlow && g_keystrokesGlowModifier[3] > 0.05f) {
-                    DrawKeyGlow(keystrokesDraw, dPos, ImVec2(asdWidth, keyHeight), rounding, g_keystrokesGlowColor, g_keystrokesGlowModifier[3], g_keystrokesGlowAmount * 0.25f * g_keystrokesUIScale, easedAnim);
+                    DrawKeyGlow(keystrokesDraw, dPos, ImVec2(asdWidth, keyHeight), rounding, g_keystrokesGlowColor, g_keystrokesGlowModifier[3], g_keystrokesGlowAmount * 0.25f * (g_keystrokesUIScale * ksScale), easedAnim);
                 }
                 
                 if (g_keystrokesGlowEnabled && dPressed && g_keystrokesGlowModifier[3] > 0.05f) {
-                    DrawKeyGlow(keystrokesDraw, dPos, ImVec2(asdWidth, keyHeight), rounding, g_keystrokesGlowEnabledColor, g_keystrokesGlowModifier[3], g_keystrokesGlowEnabledAmount * 0.25f * g_keystrokesUIScale, easedAnim);
+                    DrawKeyGlow(keystrokesDraw, dPos, ImVec2(asdWidth, keyHeight), rounding, g_keystrokesGlowEnabledColor, g_keystrokesGlowModifier[3], g_keystrokesGlowEnabledAmount * 0.25f * (g_keystrokesUIScale * ksScale), easedAnim);
                 }
                 
                 keystrokesDraw->AddRectFilled(dPos, ImVec2(dPos.x + asdWidth, dPos.y + keyHeight), dBgCol, rounding);
@@ -380,8 +389,8 @@ void Keystrokes::RenderDisplay(float sw, float sh) {
                     keystrokesDraw->AddRect(dPos, ImVec2(dPos.x + asdWidth, dPos.y + keyHeight), ImGui::GetColorU32(g_keystrokesBorderColor), rounding, 0, g_keystrokesBorderWidth);
                 }
                 
-                float dTextPosX = dPos.x + (10.0f * g_keystrokesUIScale) + (g_keystrokesTextXOffset * g_keystrokesUIScale);
-                float dTextPosY = dPos.y + (6.0f * g_keystrokesUIScale) + (g_keystrokesTextYOffset * g_keystrokesUIScale);
+                float dTextPosX = dPos.x + (10.0f * (g_keystrokesUIScale * ksScale)) + (g_keystrokesTextXOffset * (g_keystrokesUIScale * ksScale));
+                float dTextPosY = dPos.y + (6.0f * (g_keystrokesUIScale * ksScale)) + (g_keystrokesTextYOffset * (g_keystrokesUIScale * ksScale));
                 
                 if (g_keystrokesTextShadow) {
                     keystrokesDraw->AddText(keystrokesFont, asdTextScale, ImVec2(dTextPosX + textShadowOffset, dTextPosY + textShadowOffset), ImGui::GetColorU32(g_keystrokesShadowStates[3]), g_keystrokesDText.c_str());
@@ -396,19 +405,37 @@ void Keystrokes::RenderDisplay(float sw, float sh) {
                 bool rmbPressed = handlerRes[5];
                 bool spacePressed = handlerRes[6];
                 
-                // Track CPS for LMB
-                if (lmbPressed && !g_prevLmbPressed) {
+                // CPS tracking: actual mouse buttons + X/U keys counted separately
+                bool actualLmb = (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
+                bool actualRmb = (GetAsyncKeyState(VK_RBUTTON) & 0x8000) != 0;
+                
+                if (actualLmb && !g_prevLmbPressed) {
                     g_lmbClickTimes[g_lmbClickIndex] = GetTickCount64();
                     g_lmbClickIndex = (g_lmbClickIndex + 1) % 100;
                 }
-                g_prevLmbPressed = lmbPressed;
+                g_prevLmbPressed = actualLmb;
                 
-                // Track CPS for RMB
-                if (rmbPressed && !g_prevRmbPressed) {
+                if (actualRmb && !g_prevRmbPressed) {
                     g_rmbClickTimes[g_rmbClickIndex] = GetTickCount64();
                     g_rmbClickIndex = (g_rmbClickIndex + 1) % 100;
                 }
-                g_prevRmbPressed = rmbPressed;
+                g_prevRmbPressed = actualRmb;
+                
+                // X -> LMB and U -> RMB as additional independent click sources
+                if (g_countXUAsClicks) {
+                    bool xPressed = (GetAsyncKeyState('X') & 0x8000) != 0;
+                    bool uPressed = (GetAsyncKeyState('U') & 0x8000) != 0;
+                    if (xPressed && !g_prevXPressed) {
+                        g_lmbClickTimes[g_lmbClickIndex] = GetTickCount64();
+                        g_lmbClickIndex = (g_lmbClickIndex + 1) % 100;
+                    }
+                    if (uPressed && !g_prevUPressed) {
+                        g_rmbClickTimes[g_rmbClickIndex] = GetTickCount64();
+                        g_rmbClickIndex = (g_rmbClickIndex + 1) % 100;
+                    }
+                    g_prevXPressed = xPressed;
+                    g_prevUPressed = uPressed;
+                }
 
                 // Recalculate CPS every frame for smooth decay to 0
                 int lmbCount = 0;
@@ -435,11 +462,11 @@ void Keystrokes::RenderDisplay(float sw, float sh) {
                     ImU32 lmbBgCol = ImGui::GetColorU32(g_keystrokesStates[4]);
                     
                     if (g_keystrokesGlow && g_keystrokesGlowModifier[4] > 0.05f) {
-                        DrawKeyGlow(keystrokesDraw, lmbPos, ImVec2(lmbRmbWidth, keyHeight), rounding, g_keystrokesGlowColor, g_keystrokesGlowModifier[4], g_keystrokesGlowAmount * 0.25f * g_keystrokesUIScale, easedAnim);
+                        DrawKeyGlow(keystrokesDraw, lmbPos, ImVec2(lmbRmbWidth, keyHeight), rounding, g_keystrokesGlowColor, g_keystrokesGlowModifier[4], g_keystrokesGlowAmount * 0.25f * (g_keystrokesUIScale * ksScale), easedAnim);
                     }
                     
                     if (g_keystrokesGlowEnabled && lmbPressed && g_keystrokesGlowModifier[4] > 0.05f) {
-                        DrawKeyGlow(keystrokesDraw, lmbPos, ImVec2(lmbRmbWidth, keyHeight), rounding, g_keystrokesGlowEnabledColor, g_keystrokesGlowModifier[4], g_keystrokesGlowEnabledAmount * 0.25f * g_keystrokesUIScale, easedAnim);
+                        DrawKeyGlow(keystrokesDraw, lmbPos, ImVec2(lmbRmbWidth, keyHeight), rounding, g_keystrokesGlowEnabledColor, g_keystrokesGlowModifier[4], g_keystrokesGlowEnabledAmount * 0.25f * (g_keystrokesUIScale * ksScale), easedAnim);
                     }
                     
                     keystrokesDraw->AddRectFilled(lmbPos, ImVec2(lmbPos.x + lmbRmbWidth, lmbPos.y + keyHeight), lmbBgCol, rounding);
@@ -447,9 +474,9 @@ void Keystrokes::RenderDisplay(float sw, float sh) {
                         keystrokesDraw->AddRect(lmbPos, ImVec2(lmbPos.x + lmbRmbWidth, lmbPos.y + keyHeight), ImGui::GetColorU32(g_keystrokesBorderColor), rounding, 0, g_keystrokesBorderWidth);
                     }
                     
-                    float lmbTextPosX = lmbPos.x + (15.0f * g_keystrokesUIScale) + (g_keystrokesTextXOffset * g_keystrokesUIScale);
-                    float lmbTextPosY = lmbPos.y + (3.0f * g_keystrokesUIScale) + (g_keystrokesTextYOffset * g_keystrokesUIScale);
-                    float mouseTextScale = 14.0f * g_keystrokesUIScale * g_keystrokesTextScale2;
+                    float lmbTextPosX = lmbPos.x + (15.0f * (g_keystrokesUIScale * ksScale)) + (g_keystrokesTextXOffset * (g_keystrokesUIScale * ksScale));
+                    float lmbTextPosY = lmbPos.y + (3.0f * (g_keystrokesUIScale * ksScale)) + (g_keystrokesTextYOffset * (g_keystrokesUIScale * ksScale));
+                    float mouseTextScale = 14.0f * (g_keystrokesUIScale * ksScale) * g_keystrokesTextScale2;
                     
                     if (g_keystrokesTextShadow) {
                         keystrokesDraw->AddText(keystrokesFont, mouseTextScale, ImVec2(lmbTextPosX + textShadowOffset, lmbTextPosY + textShadowOffset), ImGui::GetColorU32(g_keystrokesShadowStates[4]), g_keystrokesLMBText.c_str());
@@ -458,11 +485,12 @@ void Keystrokes::RenderDisplay(float sw, float sh) {
                     
                     // LMB CPS text
                     std::string lmbCpsStr = std::to_string(g_lmbCps) + " CPS";
-                    float cpsMiniScale = 11.0f * g_keystrokesUIScale * g_keystrokesTextScale2;
+                    if ((GetAsyncKeyState(VK_MENU) & 0x8000) && (GetAsyncKeyState('X') & 0x8000)) lmbCpsStr = "ALT X!";
+                    float cpsMiniScale = 11.0f * (g_keystrokesUIScale * ksScale) * g_keystrokesTextScale2;
                     if (g_keystrokesTextShadow) {
-                        keystrokesDraw->AddText(keystrokesFont, cpsMiniScale, ImVec2(lmbTextPosX + textShadowOffset, lmbTextPosY + 19.0f * g_keystrokesUIScale + textShadowOffset), ImGui::GetColorU32(g_keystrokesShadowStates[4]), lmbCpsStr.c_str());
+                        keystrokesDraw->AddText(keystrokesFont, cpsMiniScale, ImVec2(lmbTextPosX + textShadowOffset, lmbTextPosY + 19.0f * (g_keystrokesUIScale * ksScale) + textShadowOffset), ImGui::GetColorU32(g_keystrokesShadowStates[4]), lmbCpsStr.c_str());
                     }
-                    keystrokesDraw->AddText(keystrokesFont, cpsMiniScale, ImVec2(lmbTextPosX, lmbTextPosY + 19.0f * g_keystrokesUIScale), ImGui::GetColorU32(g_keystrokesTextStates[4]), lmbCpsStr.c_str());
+                    keystrokesDraw->AddText(keystrokesFont, cpsMiniScale, ImVec2(lmbTextPosX, lmbTextPosY + 19.0f * (g_keystrokesUIScale * ksScale)), ImGui::GetColorU32(g_keystrokesTextStates[4]), lmbCpsStr.c_str());
                     
                     // RMB
                     if (g_keystrokesShowLMBRMB) {
@@ -470,11 +498,11 @@ void Keystrokes::RenderDisplay(float sw, float sh) {
                         ImU32 rmbBgCol = ImGui::GetColorU32(g_keystrokesStates[5]);
                         
                         if (g_keystrokesGlow && g_keystrokesGlowModifier[5] > 0.05f) {
-                            DrawKeyGlow(keystrokesDraw, rmbPos, ImVec2(lmbRmbWidth, keyHeight), rounding, g_keystrokesGlowColor, g_keystrokesGlowModifier[5], g_keystrokesGlowAmount * 0.25f * g_keystrokesUIScale, easedAnim);
+                            DrawKeyGlow(keystrokesDraw, rmbPos, ImVec2(lmbRmbWidth, keyHeight), rounding, g_keystrokesGlowColor, g_keystrokesGlowModifier[5], g_keystrokesGlowAmount * 0.25f * (g_keystrokesUIScale * ksScale), easedAnim);
                         }
                         
                         if (g_keystrokesGlowEnabled && rmbPressed && g_keystrokesGlowModifier[5] > 0.05f) {
-                            DrawKeyGlow(keystrokesDraw, rmbPos, ImVec2(lmbRmbWidth, keyHeight), rounding, g_keystrokesGlowEnabledColor, g_keystrokesGlowModifier[5], g_keystrokesGlowEnabledAmount * 0.25f * g_keystrokesUIScale, easedAnim);
+                            DrawKeyGlow(keystrokesDraw, rmbPos, ImVec2(lmbRmbWidth, keyHeight), rounding, g_keystrokesGlowEnabledColor, g_keystrokesGlowModifier[5], g_keystrokesGlowEnabledAmount * 0.25f * (g_keystrokesUIScale * ksScale), easedAnim);
                         }
                         
                         keystrokesDraw->AddRectFilled(rmbPos, ImVec2(rmbPos.x + lmbRmbWidth, rmbPos.y + keyHeight), rmbBgCol, rounding);
@@ -482,8 +510,8 @@ void Keystrokes::RenderDisplay(float sw, float sh) {
                             keystrokesDraw->AddRect(rmbPos, ImVec2(rmbPos.x + lmbRmbWidth, rmbPos.y + keyHeight), ImGui::GetColorU32(g_keystrokesBorderColor), rounding, 0, g_keystrokesBorderWidth);
                         }
                         
-                        float rmbTextPosX = rmbPos.x + (15.0f * g_keystrokesUIScale) + (g_keystrokesTextXOffset * g_keystrokesUIScale);
-                        float rmbTextPosY = rmbPos.y + (3.0f * g_keystrokesUIScale) + (g_keystrokesTextYOffset * g_keystrokesUIScale);
+                        float rmbTextPosX = rmbPos.x + (15.0f * (g_keystrokesUIScale * ksScale)) + (g_keystrokesTextXOffset * (g_keystrokesUIScale * ksScale));
+                        float rmbTextPosY = rmbPos.y + (3.0f * (g_keystrokesUIScale * ksScale)) + (g_keystrokesTextYOffset * (g_keystrokesUIScale * ksScale));
                         
                         if (g_keystrokesTextShadow) {
                             keystrokesDraw->AddText(keystrokesFont, mouseTextScale, ImVec2(rmbTextPosX + textShadowOffset, rmbTextPosY + textShadowOffset), ImGui::GetColorU32(g_keystrokesShadowStates[5]), g_keystrokesRMBText.c_str());
@@ -492,10 +520,11 @@ void Keystrokes::RenderDisplay(float sw, float sh) {
                         
                         // RMB CPS text
                         std::string rmbCpsStr = std::to_string(g_rmbCps) + " CPS";
+                        if ((GetAsyncKeyState(VK_MENU) & 0x8000) && (GetAsyncKeyState('U') & 0x8000)) rmbCpsStr = "ALT U!";
                         if (g_keystrokesTextShadow) {
-                            keystrokesDraw->AddText(keystrokesFont, cpsMiniScale, ImVec2(rmbTextPosX + textShadowOffset, rmbTextPosY + 19.0f * g_keystrokesUIScale + textShadowOffset), ImGui::GetColorU32(g_keystrokesShadowStates[5]), rmbCpsStr.c_str());
+                            keystrokesDraw->AddText(keystrokesFont, cpsMiniScale, ImVec2(rmbTextPosX + textShadowOffset, rmbTextPosY + 19.0f * (g_keystrokesUIScale * ksScale) + textShadowOffset), ImGui::GetColorU32(g_keystrokesShadowStates[5]), rmbCpsStr.c_str());
                         }
-                        keystrokesDraw->AddText(keystrokesFont, cpsMiniScale, ImVec2(rmbTextPosX, rmbTextPosY + 19.0f * g_keystrokesUIScale), ImGui::GetColorU32(g_keystrokesTextStates[5]), rmbCpsStr.c_str());
+                        keystrokesDraw->AddText(keystrokesFont, cpsMiniScale, ImVec2(rmbTextPosX, rmbTextPosY + 19.0f * (g_keystrokesUIScale * ksScale)), ImGui::GetColorU32(g_keystrokesTextStates[5]), rmbCpsStr.c_str());
                     }
                 }
                 
@@ -509,11 +538,11 @@ void Keystrokes::RenderDisplay(float sw, float sh) {
                     ImU32 spacebarBgCol = ImGui::GetColorU32(g_keystrokesStates[6]);
                     
                     if (g_keystrokesGlow && g_keystrokesGlowModifier[6] > 0.05f) {
-                        DrawKeyGlow(keystrokesDraw, spacebarPos, ImVec2(spacebarWidth, spacebarHeight), rounding, g_keystrokesGlowColor, g_keystrokesGlowModifier[6], g_keystrokesGlowAmount * 0.25f * g_keystrokesUIScale, easedAnim);
+                        DrawKeyGlow(keystrokesDraw, spacebarPos, ImVec2(spacebarWidth, spacebarHeight), rounding, g_keystrokesGlowColor, g_keystrokesGlowModifier[6], g_keystrokesGlowAmount * 0.25f * (g_keystrokesUIScale * ksScale), easedAnim);
                     }
                     
                     if (g_keystrokesGlowEnabled && spacePressed && g_keystrokesGlowModifier[6] > 0.05f) {
-                        DrawKeyGlow(keystrokesDraw, spacebarPos, ImVec2(spacebarWidth, spacebarHeight), rounding, g_keystrokesGlowEnabledColor, g_keystrokesGlowModifier[6], g_keystrokesGlowEnabledAmount * 0.25f * g_keystrokesUIScale, easedAnim);
+                        DrawKeyGlow(keystrokesDraw, spacebarPos, ImVec2(spacebarWidth, spacebarHeight), rounding, g_keystrokesGlowEnabledColor, g_keystrokesGlowModifier[6], g_keystrokesGlowEnabledAmount * 0.25f * (g_keystrokesUIScale * ksScale), easedAnim);
                     }
                     
                     keystrokesDraw->AddRectFilled(spacebarPos, ImVec2(spacebarPos.x + spacebarWidth, spacebarPos.y + spacebarHeight), spacebarBgCol, rounding);
@@ -522,29 +551,21 @@ void Keystrokes::RenderDisplay(float sw, float sh) {
                     }
                     
                     // Spacebar text (centered)
-                    float spaceTextPosX = spacebarPos.x + (spacebarWidth / 2.0f) - (25.0f * g_keystrokesUIScale / 2.0f) + (g_keystrokesTextXOffset * g_keystrokesUIScale);
-                    float spaceTextPosY = spacebarPos.y + (spacebarHeight / 2.0f) - (8.0f * g_keystrokesUIScale / 2.0f) + (g_keystrokesTextYOffset * g_keystrokesUIScale);
+                    float spaceTextPosX = spacebarPos.x + (spacebarWidth / 2.0f) - (25.0f * (g_keystrokesUIScale * ksScale) / 2.0f) + (g_keystrokesTextXOffset * (g_keystrokesUIScale * ksScale));
+                    float spaceTextPosY = spacebarPos.y + (spacebarHeight / 2.0f) - (8.0f * (g_keystrokesUIScale * ksScale) / 2.0f) + (g_keystrokesTextYOffset * (g_keystrokesUIScale * ksScale));
                     
                     if (g_keystrokesTextShadow) {
-                        keystrokesDraw->AddText(keystrokesFont, 16.0f * g_keystrokesUIScale, ImVec2(spaceTextPosX + textShadowOffset, spaceTextPosY + textShadowOffset), ImGui::GetColorU32(g_keystrokesShadowStates[6]), "___");
+                        keystrokesDraw->AddText(keystrokesFont, 16.0f * (g_keystrokesUIScale * ksScale), ImVec2(spaceTextPosX + textShadowOffset, spaceTextPosY + textShadowOffset), ImGui::GetColorU32(g_keystrokesShadowStates[6]), "___");
                     }
-                    keystrokesDraw->AddText(keystrokesFont, 16.0f * g_keystrokesUIScale, ImVec2(spaceTextPosX, spaceTextPosY), ImGui::GetColorU32(g_keystrokesTextStates[6]), "___");
+                    keystrokesDraw->AddText(keystrokesFont, 16.0f * (g_keystrokesUIScale * ksScale), ImVec2(spaceTextPosX, spaceTextPosY), ImGui::GetColorU32(g_keystrokesTextStates[6]), "___");
                 }
             }
         }
         
-        // DEBUG: show hitbox only when menu is open
         if (GUI::IsHudEditable()) {
             ImDrawList* debugDraw = ImGui::GetForegroundDrawList();
             if (debugDraw) {
-                debugDraw->AddRect(
-                    finalPos,
-                    ImVec2(finalPos.x + keystrokesSize.x, finalPos.y + keystrokesSize.y),
-                    IM_COL32(0, 150, 255, 200),
-                    0.0f,
-                    0,
-                    2.0f
-                );
+                g_keystrokesHud->RenderHudEditor(debugDraw);
             }
         }
     }
@@ -564,6 +585,13 @@ void Keystrokes::RenderMenu() {
                 GUI::RenderCheckbox("Background Shadow", &g_keystrokesRectShadow);
                 GUI::RenderCheckbox("Text Shadow", &g_keystrokesTextShadow);
                 GUI::RenderCheckbox("Border", &g_keystrokesBorder);
+                ImGui::EndTabItem();
+            }
+            if (ImGui::BeginTabItem("Behavior")) {
+                GUI::RenderCustomSwitch("Count X/U as Clicks", &g_countXUAsClicks);
+                if (ImGui::IsItemHovered()) {
+                    ImGui::SetTooltip("When enabled, pressing X counts as a LMB click and U counts as a RMB click.");
+                }
                 ImGui::EndTabItem();
             }
             if (ImGui::BeginTabItem("Layout")) {

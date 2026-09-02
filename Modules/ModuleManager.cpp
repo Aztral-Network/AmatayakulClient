@@ -4,11 +4,9 @@ Under an4rch Development Public Source License 1.0
 
 #include "ModuleManager.hpp"
 #include "../ArrayList/ArrayList.hpp"
+#include "Globals.hpp"
 
 void Module::Initialize(uintptr_t gameBase, size_t imageSize, HudElement* renderInfoHud, HudElement* watermarkHud, HudElement* keystrokesHud, HudElement* cpsHud, HudElement* fpsOverlayHud, HudElement* pingHud, HudElement* playerInfoHud) {
-    Reach::Initialize(gameBase);
-    Hitbox::Initialize(gameBase);
-    Timer::Initialize(gameBase);
     FullBright::Initialize(gameBase);
     RenderInfo::Initialize(renderInfoHud);
     Watermark::Initialize(watermarkHud);
@@ -22,16 +20,35 @@ void Module::Initialize(uintptr_t gameBase, size_t imageSize, HudElement* render
     UnlockFPS::Initialize();
     ClickGUI::Initialize();
     
-    // Initialize new Misc modules
-    AutoClicker::Initialize();
     AntiAFK::Initialize();
+    NoHurtCam::ScanPattern(gameBase, imageSize);
     Screenshot::Initialize();
 
     // Resolve the patch targets once (game module memory)
     AutoSprint::ScanPattern(gameBase, imageSize);
+    AutoSprint::InitializeHud(&g_sprintTextHud);
     FullBright::ScanPattern(gameBase, imageSize);
-    Glide::ScanPattern(gameBase, imageSize);
-    Fly::ScanPattern(gameBase, imageSize);
+
+    // Enable resize handles on all HUD elements
+    renderInfoHud->resizable = true;
+    watermarkHud->resizable = true;
+    keystrokesHud->resizable = true;
+    cpsHud->resizable = true;
+    fpsOverlayHud->resizable = true;
+    pingHud->resizable = true;
+    playerInfoHud->resizable = true;
+
+    // Register all HUD elements for snap-to-other alignment
+    HudElement::s_snapCount = 0;
+    HudElement::RegisterSnapTarget(renderInfoHud);
+    HudElement::RegisterSnapTarget(watermarkHud);
+    HudElement::RegisterSnapTarget(keystrokesHud);
+    HudElement::RegisterSnapTarget(cpsHud);
+    HudElement::RegisterSnapTarget(fpsOverlayHud);
+    HudElement::RegisterSnapTarget(pingHud);
+    HudElement::RegisterSnapTarget(playerInfoHud);
+    HudElement::RegisterSnapTarget(&g_arrayListHud);
+    HudElement::RegisterSnapTarget(&g_sprintTextHud);
 }
 
 void Module::UpdateAnimation(unsigned long long now) {
@@ -45,8 +62,6 @@ void Module::UpdateAnimation(unsigned long long now) {
     PingCounter::UpdatePing(now);
     PlayerInfo::UpdateAnimation(now);
     
-    // Tick background modules
-    AutoClicker::Tick();
     AntiAFK::Tick();
 }
 
@@ -59,6 +74,9 @@ void Module::RenderDisplay(float sw, float sh) {
     PingCounter::RenderDisplay(sw, sh);
     PlayerInfo::RenderDisplay();
     
+    // Sprint text HUD
+    AutoSprint::RenderSprintText();
+
     // Call new centralized ArrayList
     ArrayList::Render();
 }

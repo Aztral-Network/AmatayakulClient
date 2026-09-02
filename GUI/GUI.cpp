@@ -16,6 +16,7 @@ Under an4rch Development Public Source License 1.0
 #include <shellapi.h>
 #include "../Assets/resource.h"
 #include <cmath>
+#include <algorithm>
 #include <cstdlib>
 #include "../ArrayList/ArrayList.hpp"
 #include "../Modules/ModuleHeader.hpp"
@@ -46,6 +47,8 @@ int GUI::g_previousTab = 0;
 ULONGLONG GUI::g_tabChangeTime = 0;
 float GUI::g_tabAnim = 1.0f; // Start at 1.0f so it's visible on first open
 float GUI::g_ircShiftAnim = 0.0f;
+GUI::ModFilter GUI::g_currentFilter = Filter_All;
+char GUI::g_searchBuffer[128] = "";
 extern ULONGLONG g_notifStart;
 extern bool g_showMenu;
 extern bool g_firstTabOpen;
@@ -55,12 +58,19 @@ extern ULONGLONG g_tabChangeTime;
 extern float g_tabAnim;
 extern HMODULE g_hModule;
 
-int GUI::g_currentTheme = GUI::Theme_AegleClassic;
+int GUI::g_currentTheme = GUI::Theme_AmatayakulRed;
 ImVec4 GUI::g_colorBgMain = ImVec4(0.05f, 0.04f, 0.07f, 0.99f);
 ImVec4 GUI::g_colorBgPanel = ImVec4(0.0f, 0.0f, 0.0f, 0.0f);
-ImVec4 GUI::g_colorAccent = ImVec4(1.00f, 1.00f, 1.00f, 1.00f);
-ImVec4 GUI::g_colorAccentSoft = ImVec4(0.80f, 0.80f, 0.85f, 0.40f);
-ImVec4 GUI::g_colorAccentGlow = ImVec4(1.00f, 1.00f, 1.00f, 0.40f);
+ImVec4 GUI::g_colorAccent = ImVec4(0.85f, 0.05f, 0.10f, 1.0f);
+ImVec4 GUI::g_colorAccentSoft = ImVec4(0.65f, 0.03f, 0.08f, 0.4f);
+ImVec4 GUI::g_colorAccentGlow = ImVec4(0.85f, 0.05f, 0.10f, 0.4f);
+ImVec4 GUI::g_gradientColor1 = ImVec4(0.18f, 0.02f, 0.03f, 1.0f);
+ImVec4 GUI::g_gradientColor2 = ImVec4(0.10f, 0.01f, 0.02f, 1.0f);
+ImVec4 GUI::g_gradientColor3 = ImVec4(0.02f, 0.005f, 0.01f, 1.0f);
+ImVec4 GUI::g_gradientColor4 = ImVec4(0.06f, 0.01f, 0.015f, 1.0f);
+ImTextureID GUI::g_logoTexture = 0;
+int GUI::g_logoWidth = 0;
+int GUI::g_logoHeight = 0;
 
 float GUI::g_sidebarIndicatorY = 85.0f;
 float GUI::g_sidebarTargetIndicatorY = 85.0f;
@@ -75,17 +85,21 @@ std::vector<GUI::LoadedFont> GUI::g_loadedFonts;
 
 std::map<std::string, float> GUI::g_elementAnims;
 std::map<std::string, float> GUI::g_elementHeights;
-void* GUI::g_tabTextures[8] = { nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr };
+void* GUI::g_tabTextures[6] = { nullptr, nullptr, nullptr, nullptr, nullptr, nullptr };
 void* GUI::g_likeTexture = nullptr;
 void* GUI::g_downloadTexture = nullptr;
+std::map<std::string, ImTextureID> GUI::g_moduleIcons;
+std::map<std::string, std::pair<int,int>> GUI::g_moduleIconSizes;
+std::string GUI::g_currentSettingsModule;
+int GUI::g_cardStaggerIndex = 0;
 
 std::vector<GUI::MarketConfig> GUI::g_marketConfigs;
 bool GUI::g_fetchingMarket = false;
 bool GUI::g_marketFetchDone = false;
 bool GUI::g_marketFetchFailed = false;
 
-char g_notifTitle[64] = "Azyre | an4rch development";
-char g_notifMessage[128] = "Injected successfully.";
+char g_notifTitle[64] = "Amatayakul Client";
+char g_notifMessage[128] = "DLL loaded successfully.\nPress RSHIFT to open GUI.";
 
 struct CardInfo {
     std::string key;
@@ -218,17 +232,109 @@ void GUI::RenderParticles(ImDrawList* draw, ImVec2 pos, ImVec2 size, float alpha
     }
 }
 
+const char* GUI::GetThemeLogoName() {
+    switch (g_currentTheme) {
+        case Theme_AmatayakulRed:  return "logo";
+        case Theme_AegleClassic:   return "logo";
+        case Theme_SakuraBlossom:  return "logo_pink";
+        case Theme_Cyberpunk:      return "logo_cyan";
+        case Theme_EmeraldForest:  return "logo_green";
+        case Theme_DeepSea:        return "logo_blue";
+        case Theme_LegacyPink:     return "logo_pink";
+        default:                   return "logo";
+    }
+}
+
+void GUI::RenderAnimatedGradient(ImDrawList* draw, ImVec2 pos, ImVec2 size, float alpha) {
+    // Animated theme-colored gradient background
+    float t = (float)ImGui::GetTime();
+    
+    float pulse = 0.5f + 0.5f * sinf(t * 0.5f);
+    float wave  = 0.5f + 0.5f * sinf(t * 0.3f + 1.5f);
+    
+    // Use theme gradient colors with animated shift
+    float shift1 = pulse * 0.06f;
+    float shift2 = wave * 0.04f;
+    
+    int ar1 = (int)((g_gradientColor1.x + shift1) * 255);
+    int ag1 = (int)((g_gradientColor1.y + shift1 * 0.3f) * 255);
+    int ab1 = (int)((g_gradientColor1.z + shift1 * 0.3f) * 255);
+    
+    int ar2 = (int)((g_gradientColor2.x + shift2) * 255);
+    int ag2 = (int)((g_gradientColor2.y + shift2 * 0.3f) * 255);
+    int ab2 = (int)((g_gradientColor2.z + shift2 * 0.3f) * 255);
+    
+    int ar3 = (int)(g_gradientColor3.x * 255);
+    int ag3 = (int)(g_gradientColor3.y * 255);
+    int ab3 = (int)(g_gradientColor3.z * 255);
+    
+    int ar4 = (int)((g_gradientColor4.x + shift1 * 0.5f) * 255);
+    int ag4 = (int)((g_gradientColor4.y + shift1 * 0.15f) * 255);
+    int ab4 = (int)((g_gradientColor4.z + shift1 * 0.15f) * 255);
+    
+    int a = (int)(alpha * 255);
+    
+    // Full-screen four-corner gradient using theme colors
+    draw->AddRectFilledMultiColor(
+        pos,
+        ImVec2(pos.x + size.x, pos.y + size.y),
+        IM_COL32(ar1, ag1, ab1, a),  // top-left
+        IM_COL32(ar2, ag2, ab2, a),  // top-right
+        IM_COL32(ar4, ag4, ab4, a),  // bottom-right
+        IM_COL32(ar3, ag3, ab3, a)   // bottom-left
+    );
+    
+    // Animated glow orb tinted with accent color
+    float orbX = pos.x + size.x * (0.25f + 0.3f * sinf(t * 0.2f));
+    float orbY = pos.y + size.y * (0.35f + 0.25f * cosf(t * 0.15f));
+    float orbR = size.x * 0.4f;
+    float orbA = 0.08f + 0.06f * sinf(t * 0.4f);
+    ImU32 orbCol = IM_COL32(
+        (int)((g_colorAccent.x * 0.5f) * 255),
+        (int)((g_colorAccent.y * 0.5f) * 255),
+        (int)((g_colorAccent.z * 0.5f) * 255),
+        (int)(orbA * alpha * 255));
+    draw->AddCircleFilled(ImVec2(orbX, orbY), orbR, orbCol);
+    
+    // Second smaller orb for depth
+    float orb2X = pos.x + size.x * (0.7f + 0.2f * cosf(t * 0.25f + 2.0f));
+    float orb2Y = pos.y + size.y * (0.6f + 0.2f * sinf(t * 0.18f + 1.0f));
+    float orb2R = size.x * 0.25f;
+    float orb2A = 0.06f + 0.04f * sinf(t * 0.35f + 0.5f);
+    ImU32 orb2Col = IM_COL32(
+        (int)((g_colorAccent.x * 0.35f) * 255),
+        (int)((g_colorAccent.y * 0.35f) * 255),
+        (int)((g_colorAccent.z * 0.35f) * 255),
+        (int)(orb2A * alpha * 255));
+    draw->AddCircleFilled(ImVec2(orb2X, orb2Y), orb2R, orb2Col);
+}
+
 void GUI::ApplyThemePreset(int presetId) {
-    if (presetId < 0 || presetId >= Theme_Max) presetId = Theme_AegleClassic;
+    if (presetId < 0 || presetId >= Theme_Max) presetId = Theme_AmatayakulRed;
     g_currentTheme = presetId;
     
     switch (g_currentTheme) {
+        case Theme_AmatayakulRed:
+            g_colorBgMain = ImVec4(0.05f, 0.04f, 0.07f, 0.99f);
+            g_colorBgPanel = ImVec4(0.08f, 0.07f, 0.12f, 0.00f);
+            g_colorAccent = ImVec4(0.85f, 0.05f, 0.10f, 1.0f);
+            g_colorAccentSoft = ImVec4(0.65f, 0.03f, 0.08f, 0.4f);
+            g_colorAccentGlow = ImVec4(0.85f, 0.05f, 0.10f, 0.4f);
+            g_gradientColor1 = ImVec4(0.18f, 0.02f, 0.03f, 1.0f);
+            g_gradientColor2 = ImVec4(0.10f, 0.01f, 0.02f, 1.0f);
+            g_gradientColor3 = ImVec4(0.02f, 0.005f, 0.01f, 1.0f);
+            g_gradientColor4 = ImVec4(0.06f, 0.01f, 0.015f, 1.0f);
+            break;
         case Theme_AegleClassic:
-            g_colorBgMain = ImVec4(0.05f, 0.04f, 0.07f, 0.99f);        // Dark
-            g_colorBgPanel = ImVec4(0.08f, 0.07f, 0.12f, 0.00f);        // Dark panel
-            g_colorAccent = ImVec4(1.00f, 1.00f, 1.00f, 1.00f);         // White accent
-            g_colorAccentSoft = ImVec4(0.80f, 0.80f, 0.85f, 0.40f);     // Light gray soft
-            g_colorAccentGlow = ImVec4(1.00f, 1.00f, 1.00f, 0.40f);
+            g_colorBgMain = ImVec4(0.05f, 0.04f, 0.07f, 0.99f);
+            g_colorBgPanel = ImVec4(0.08f, 0.07f, 0.12f, 0.00f);
+            g_colorAccent = ImVec4(0.85f, 0.85f, 0.90f, 1.0f);          // White/silver accent
+            g_colorAccentSoft = ImVec4(0.65f, 0.65f, 0.70f, 0.4f);
+            g_colorAccentGlow = ImVec4(0.85f, 0.85f, 0.90f, 0.4f);
+            g_gradientColor1 = ImVec4(0.10f, 0.10f, 0.14f, 1.0f);
+            g_gradientColor2 = ImVec4(0.06f, 0.06f, 0.10f, 1.0f);
+            g_gradientColor3 = ImVec4(0.02f, 0.02f, 0.04f, 1.0f);
+            g_gradientColor4 = ImVec4(0.04f, 0.04f, 0.07f, 1.0f);
             break;
         case Theme_SakuraBlossom:
             g_colorBgMain = ImVec4(0.08f, 0.06f, 0.08f, 0.99f);
@@ -236,6 +342,10 @@ void GUI::ApplyThemePreset(int presetId) {
             g_colorAccent = ImVec4(1.00f, 0.60f, 0.75f, 1.00f); // Sakura Pink
             g_colorAccentSoft = ImVec4(1.00f, 0.78f, 0.83f, 0.40f); 
             g_colorAccentGlow = ImVec4(1.00f, 0.60f, 0.75f, 0.45f);
+            g_gradientColor1 = ImVec4(0.18f, 0.06f, 0.10f, 1.0f);
+            g_gradientColor2 = ImVec4(0.12f, 0.04f, 0.08f, 1.0f);
+            g_gradientColor3 = ImVec4(0.03f, 0.01f, 0.03f, 1.0f);
+            g_gradientColor4 = ImVec4(0.08f, 0.03f, 0.06f, 1.0f);
             break;
         case Theme_Cyberpunk:
             g_colorBgMain = ImVec4(0.03f, 0.03f, 0.05f, 0.99f);
@@ -243,6 +353,10 @@ void GUI::ApplyThemePreset(int presetId) {
             g_colorAccent = ImVec4(0.00f, 0.95f, 1.00f, 1.00f); // Cyan
             g_colorAccentSoft = ImVec4(0.95f, 0.90f, 0.00f, 0.40f); // Yellow
             g_colorAccentGlow = ImVec4(0.00f, 0.95f, 1.00f, 0.40f);
+            g_gradientColor1 = ImVec4(0.01f, 0.05f, 0.10f, 1.0f);
+            g_gradientColor2 = ImVec4(0.00f, 0.08f, 0.12f, 1.0f);
+            g_gradientColor3 = ImVec4(0.01f, 0.01f, 0.03f, 1.0f);
+            g_gradientColor4 = ImVec4(0.02f, 0.04f, 0.08f, 1.0f);
             break;
         case Theme_EmeraldForest:
             g_colorBgMain = ImVec4(0.04f, 0.06f, 0.05f, 0.99f);
@@ -250,6 +364,10 @@ void GUI::ApplyThemePreset(int presetId) {
             g_colorAccent = ImVec4(0.20f, 0.85f, 0.55f, 1.00f); // Emerald
             g_colorAccentSoft = ImVec4(0.15f, 0.60f, 0.40f, 0.40f);
             g_colorAccentGlow = ImVec4(0.20f, 0.85f, 0.55f, 0.40f);
+            g_gradientColor1 = ImVec4(0.03f, 0.10f, 0.05f, 1.0f);
+            g_gradientColor2 = ImVec4(0.02f, 0.08f, 0.04f, 1.0f);
+            g_gradientColor3 = ImVec4(0.01f, 0.03f, 0.02f, 1.0f);
+            g_gradientColor4 = ImVec4(0.02f, 0.06f, 0.03f, 1.0f);
             break;
         case Theme_DeepSea:
             g_colorBgMain = ImVec4(0.03f, 0.05f, 0.09f, 0.99f);
@@ -257,6 +375,10 @@ void GUI::ApplyThemePreset(int presetId) {
             g_colorAccent = ImVec4(0.20f, 0.60f, 1.00f, 1.00f); // Ocean Blue
             g_colorAccentSoft = ImVec4(0.40f, 0.85f, 1.00f, 0.40f); // Ice Cyan
             g_colorAccentGlow = ImVec4(0.20f, 0.60f, 1.00f, 0.40f);
+            g_gradientColor1 = ImVec4(0.02f, 0.05f, 0.12f, 1.0f);
+            g_gradientColor2 = ImVec4(0.01f, 0.04f, 0.10f, 1.0f);
+            g_gradientColor3 = ImVec4(0.01f, 0.02f, 0.05f, 1.0f);
+            g_gradientColor4 = ImVec4(0.02f, 0.03f, 0.08f, 1.0f);
             break;
         case Theme_LegacyPink:
             g_colorBgMain = ImVec4(0.05f, 0.04f, 0.07f, 0.99f);
@@ -264,7 +386,27 @@ void GUI::ApplyThemePreset(int presetId) {
             g_colorAccent = ImVec4(1.00f, 0.40f, 0.80f, 1.00f); // Pink
             g_colorAccentSoft = ImVec4(0.60f, 0.50f, 1.00f, 0.40f); // Purple Soft
             g_colorAccentGlow = ImVec4(1.00f, 0.40f, 0.80f, 0.40f);
+            g_gradientColor1 = ImVec4(0.15f, 0.03f, 0.10f, 1.0f);
+            g_gradientColor2 = ImVec4(0.10f, 0.02f, 0.08f, 1.0f);
+            g_gradientColor3 = ImVec4(0.03f, 0.01f, 0.03f, 1.0f);
+            g_gradientColor4 = ImVec4(0.08f, 0.02f, 0.06f, 1.0f);
             break;
+    }
+    
+    // Load themed logo
+    const char* logoName = GetThemeLogoName();
+    if (g_moduleIcons.count(logoName)) {
+        g_logoTexture = g_moduleIcons[logoName];
+        if (g_moduleIconSizes.count(logoName)) {
+            g_logoWidth = g_moduleIconSizes[logoName].first;
+            g_logoHeight = g_moduleIconSizes[logoName].second;
+        }
+    } else {
+        g_logoTexture = g_moduleIcons["logo"];
+        if (g_moduleIconSizes.count("logo")) {
+            g_logoWidth = g_moduleIconSizes["logo"].first;
+            g_logoHeight = g_moduleIconSizes["logo"].second;
+        }
     }
     
     // Apply immediately to ImGui style
@@ -521,6 +663,7 @@ bool GUI::RenderSidebarButton(const char* label, int index) {
         g_currentTab = index;
         g_tabChangeTime = GetTickCount64();
         g_tabAnim = 0.0f;
+        g_currentSettingsModule = "";
     }
     
     return pressed;
@@ -859,6 +1002,95 @@ bool GUI::RenderSlider(const char* label, float* value, float min, float max, co
 }
 
 // ── Custom Combo / Dropdown ────────────────────────────────────────────────────
+bool GUI::RenderKeybind(const char* label, int* key) {
+    ImGui::PushID(label);
+
+    const char* displayText = DisplayLabel(label);
+    ImVec2 p = ImGui::GetCursorScreenPos();
+    ImDrawList* draw = ImGui::GetWindowDrawList();
+
+    float lineH = ImGui::GetFrameHeight();
+    float labelW = ImGui::CalcTextSize(displayText).x;
+    float availW = ImGui::GetContentRegionAvail().x;
+    float btnW = availW - labelW - 16.0f;
+    if (btnW < 100.0f) btnW = availW * 0.6f;
+
+    ImVec4 accV = g_colorAccent;
+
+    // Label
+    draw->AddText(ImVec2(p.x, p.y + (lineH - ImGui::GetFontSize()) * 0.5f),
+        ImColor(210, 210, 220, 220), displayText);
+
+    float btnX = p.x + labelW + 10.0f;
+    ImVec2 btnMin(btnX, p.y);
+    ImVec2 btnMax(btnX + btnW, p.y + lineH);
+
+    static int* activeBindPtr = nullptr;
+    static bool waitRelease = false;
+    
+    // Check key presses if active
+    if (activeBindPtr == key) {
+        bool anyDown = false;
+        for (int i = 0x01; i < 256; i++) {
+            if (GetAsyncKeyState(i) & 0x8000) {
+                anyDown = true;
+                if (!waitRelease && i != VK_LBUTTON && i != VK_RBUTTON && i != VK_MBUTTON) {
+                    if (i == VK_ESCAPE) {
+                        *key = 0; // Unbound
+                    } else {
+                        *key = i;
+                    }
+                    activeBindPtr = nullptr;
+                    break;
+                }
+            }
+        }
+        if (!anyDown) waitRelease = false;
+    }
+
+    ImGui::SetCursorScreenPos(btnMin);
+    ImGui::InvisibleButton("##keybind", ImVec2(btnW, lineH));
+    bool clicked = ImGui::IsItemClicked();
+    bool hovered = ImGui::IsItemHovered();
+
+    if (clicked) {
+        activeBindPtr = key;
+        waitRelease = true;
+    }
+
+    ImU32 bgCol = hovered ? IM_COL32(30, 30, 40, 220) : IM_COL32(20, 20, 28, 200);
+    if (activeBindPtr == key) bgCol = ImColor(accV.x * 0.4f, accV.y * 0.4f, accV.z * 0.4f, 0.8f);
+
+    draw->AddRectFilled(btnMin, btnMax, bgCol, 6.0f);
+    draw->AddRect(btnMin, btnMax, IM_COL32(80, 80, 90, 100), 6.0f, 0, 1.0f);
+
+    char name[64] = {0};
+    if (activeBindPtr == key) {
+        strcpy_s(name, "...");
+    } else if (*key == 0) {
+        strcpy_s(name, "None");
+    } else {
+        UINT scanCode = MapVirtualKeyA(*key, MAPVK_VK_TO_VSC);
+        if (scanCode == 0 || GetKeyNameTextA(scanCode << 16, name, sizeof(name)) == 0) {
+            if (*key == VK_RSHIFT) strcpy_s(name, "Right Shift");
+            else if (*key == VK_LSHIFT) strcpy_s(name, "Left Shift");
+            else if (*key == VK_INSERT) strcpy_s(name, "Insert");
+            else if (*key == VK_HOME) strcpy_s(name, "Home");
+            else if (*key == VK_END) strcpy_s(name, "End");
+            else sprintf_s(name, "[0x%X]", *key);
+        }
+    }
+
+    ImVec2 textSize = ImGui::CalcTextSize(name);
+    draw->AddText(ImVec2(btnMin.x + (btnW - textSize.x) * 0.5f, btnMin.y + (lineH - textSize.y) * 0.5f),
+        ImColor(230, 230, 235, 255), name);
+
+    ImGui::SetCursorScreenPos(ImVec2(p.x, p.y + lineH + ImGui::GetStyle().ItemSpacing.y));
+    ImGui::PopID();
+    
+    return activeBindPtr == key;
+}
+
 bool GUI::RenderCombo(const char* label, int* current_item, const char* const* items, int items_count) {
     ImGui::PushID(label);
 
@@ -1147,7 +1379,7 @@ static void RestoreGameCursorLock(bool wasInWorld) {
 }
 
 void GUI::HandleMenuToggle() {
-    if (!(GetAsyncKeyState(VK_INSERT) & 0x8000) || (GetTickCount64() - g_lastToggle) <= 400)
+    if (!(GetAsyncKeyState(ClickGUI::g_bindKey) & 0x8000) || (GetTickCount64() - g_lastToggle) <= 400)
         return;
 
     // NOTE: unqualified `g_showMenu` inside this member function resolves to
@@ -1215,13 +1447,8 @@ void GUI::RenderBackdrop(ID3D11Device* pDevice, ID3D11DeviceContext* pContext, I
                                    g_menuWinSize.x, g_menuWinSize.y, menuOpacity);
     }
 
-    // Rise Background shader pass (DX11 offscreen texture for Regular mode)
-    if (GUI::g_menuAnim > 0.001f && ClickGUI::g_guiStyle == 0 && ClickGUI::g_showRiseBackground &&
-        g_menuWinSize.x > 1.0f && g_menuWinSize.y > 1.0f) {
-        static ULONGLONG s_riseStartTime = GetTickCount64();
-        float timeSec = (float)(GetTickCount64() - s_riseStartTime) / 1000.0f;
-        ClickGUI::RenderRiseBackground(pDevice, pContext, g_menuWinSize.x, g_menuWinSize.y, timeSec, menuOpacity);
-    }
+    // Rise Background shader disabled - replaced with animated gradient
+    // (RenderRiseBackground no longer called)
 }
 
 void GUI::RenderMenu(float screenWidth, float screenHeight) {
@@ -1244,17 +1471,17 @@ void GUI::RenderMenu(float screenWidth, float screenHeight) {
         return;
     }
     
+    float dt = ImGui::GetIO().DeltaTime;
     float positionProgress = GUI::g_showMenu
         ? Animations::EaseOutExpo(GUI::g_menuAnim)
         : GUI::g_menuAnim;
     float e = GUI::g_showMenu
         ? positionProgress
         : Animations::EaseInOutQuad(GUI::g_menuAnim);
-    // Background: dark vignette behind the menu
+    // Dark background tint (gradient drawn inside the window)
     {
         ImDrawList* bd = ImGui::GetBackgroundDrawList();
-        int baseA = (ClickGUI::g_bgStyle == 0) ? 175 : 25;
-        bd->AddRectFilled(ImVec2(0, 0), ImVec2(screenWidth, screenHeight), IM_COL32(3, 4, 8, (int)(e * baseA)));
+        bd->AddRectFilled(ImVec2(0, 0), ImVec2(screenWidth, screenHeight), IM_COL32(3, 3, 5, (int)(e * 220.0f)));
     }
 
     if (e > 0.01f) {
@@ -1300,25 +1527,15 @@ void GUI::RenderMenu(float screenWidth, float screenHeight) {
         ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,    ImVec2(10.0f, 5.0f));
         ImGui::PushStyleColor(ImGuiCol_Border,
             ImVec4(g_colorAccent.x * 0.22f, g_colorAccent.y * 0.22f, g_colorAccent.z * 0.22f, 0.65f));
+        ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0, 0, 0, 0));
 
-        if (ImGui::Begin("Azyre", NULL, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar)) {
+        if (ImGui::Begin("Amatayakul", NULL, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoScrollbar)) {
             
             ImVec2 wPos = ImGui::GetWindowPos();
             ImVec2 wSize = ImGui::GetWindowSize();
             
-            // Render Rise Background inside the window draw list
-            if (ClickGUI::g_showRiseBackground) {
-                if (ID3D11ShaderResourceView* riseSRV = ClickGUI::GetRiseSRV()) {
-                    ImGui::GetWindowDrawList()->AddImageRounded(
-                        (ImTextureID)riseSRV,
-                        wPos,
-                        ImVec2(wPos.x + wSize.x, wPos.y + wSize.y),
-                        ImVec2(0, 0), ImVec2(1, 1),
-                        IM_COL32(255, 255, 255, (int)(e * 255.0f)),
-                        16.0f * sc
-                    );
-                }
-            }
+            // Animated gradient background inside the window
+            GUI::RenderAnimatedGradient(ImGui::GetWindowDrawList(), wPos, wSize, e);
             
             // ── Header Bar ──
             ImGui::BeginChild("HeaderBar", ImVec2(0, 64.0f * sc), false, ImGuiWindowFlags_NoScrollbar);
@@ -1346,178 +1563,146 @@ void GUI::RenderMenu(float screenWidth, float screenHeight) {
                         ImColor(accV.x, accV.y, accV.z, 0.95f), 1.5f);
                 }
 
-                // Logo mark (accent diamond)
-                float mk = 12.0f * sc;
-                ImVec2 mc = ImVec2(wPos.x + 36.0f * sc, wPos.y + headerH * 0.5f);
-                ImVec2 d1 = ImVec2(mc.x, mc.y - mk * 1.4f);
-                ImVec2 d2 = ImVec2(mc.x + mk * 1.4f, mc.y);
-                ImVec2 d3 = ImVec2(mc.x, mc.y + mk * 1.4f);
-                ImVec2 d4 = ImVec2(mc.x - mk * 1.4f, mc.y);
-                draw->AddQuadFilled(d1, d2, d3, d4, ImColor(accV.x, accV.y, accV.z, 0.95f));
-                draw->AddQuad(d1, d2, d3, d4, ImColor(255, 255, 255, 90), 1.5f);
+                // Logo on the left side of header
+                if (g_logoTexture && g_logoWidth > 0 && g_logoHeight > 0) {
+                    float maxLogoH = 36.0f * sc;
+                    float logoAspect = (float)g_logoWidth / (float)g_logoHeight;
+                    float logoH = maxLogoH;
+                    float logoW = logoH * logoAspect;
+                    float logoY = (headerH - logoH) * 0.5f;
+                    float logoX = 18.0f * sc;
+                    draw->AddImage((ImTextureID)g_logoTexture,
+                        ImVec2(wPos.x + logoX, wPos.y + logoY),
+                        ImVec2(wPos.x + logoX + logoW, wPos.y + logoY + logoH),
+                        ImVec2(0, 0), ImVec2(1, 1),
+                        IM_COL32(255, 255, 255, (int)(e * 255)));
+                }
 
-                // Title
-                ImGui::SetCursorPos(ImVec2(58.0f * sc, 15.0f * sc));
-                ImGui::PushFont(ImGui::GetIO().Fonts->Fonts[0]);
-                ImVec2 logoPos = ImGui::GetCursorScreenPos();
-                AddTextGlow(draw, ImGui::GetFont(), ImGui::GetFontSize(), logoPos, accCol, "AZYRE", 4.0f);
-                ImGui::Dummy(ImVec2(ImGui::CalcTextSize("AZYRE").x, ImGui::GetFontSize()));
-                ImGui::PopFont();
+                // ── Horizontal Navigation Tabs (centered) ──
+                {
+                    const char* tabLabels[] = { "Mods", "Profiles", "Terminal", "IRC Chat", "Info" };
+                    const int tabCount = 5;
+                    float tabTotalW = 0.0f;
+                    float tabWidths[tabCount];
+                    for (int t = 0; t < tabCount; t++) {
+                        tabWidths[t] = ImGui::CalcTextSize(tabLabels[t]).x + 28.0f;
+                        tabTotalW += tabWidths[t];
+                    }
+                    tabTotalW += (float)(tabCount - 1) * 6.0f;
+                    float tabsStartX = (wSize.x - tabTotalW) * 0.5f;
 
-                // Version tag
-                ImGui::SameLine(0, 10.0f * sc);
-                ImGui::SetCursorPosY(20.0f * sc);
-                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.45f, 0.45f, 0.52f, 0.9f));
-                ImGui::Text("v1.0.9");
-                ImGui::PopStyleColor();
+                    for (int t = 0; t < tabCount; t++) {
+                        bool isActive = (g_currentTab == t);
+                        std::string animKey = "hdr_tab_" + std::to_string(t);
+                        if (g_elementAnims.find(animKey) == g_elementAnims.end()) g_elementAnims[animKey] = isActive ? 1.0f : 0.0f;
+                        float target = isActive ? 1.0f : 0.0f;
+                        g_elementAnims[animKey] = Animations::Approach(g_elementAnims[animKey], target, ImGui::GetIO().DeltaTime, 10.0f);
+                        float tAnim = g_elementAnims[animKey];
 
-                // ACTIVE status pill
-                ImGui::SameLine(0, 18.0f * sc);
-                ImVec2 badgePos = ImGui::GetCursorScreenPos();
-                badgePos.y += 13.0f * sc;
-                float pulse = (sinf((float)GetTickCount64() * 0.005f) + 1.0f) * 0.5f;
-                ImVec2 badgeSize = ImVec2(82.0f * sc, 22.0f * sc);
-                draw->AddRectFilled(badgePos, ImVec2(badgePos.x + badgeSize.x, badgePos.y + badgeSize.y),
-                    ImColor(0.2f, 0.9f, 0.3f, 0.08f), 11.0f * sc);
-                draw->AddRect(badgePos, ImVec2(badgePos.x + badgeSize.x, badgePos.y + badgeSize.y),
-                    ImColor(0.2f, 0.9f, 0.3f, 0.35f), 11.0f * sc, 0, 1.0f);
-                ImU32 dotColor = ImColor(0.2f, 0.9f, 0.3f, 0.6f + pulse * 0.4f);
-                draw->AddCircleFilled(ImVec2(badgePos.x + 12.0f * sc, badgePos.y + badgeSize.y * 0.5f), 3.5f * sc, dotColor);
-                if (pulse > 0.1f)
-                    draw->AddCircle(ImVec2(badgePos.x + 12.0f * sc, badgePos.y + badgeSize.y * 0.5f), (3.5f + pulse * 4.0f) * sc,
-                        ImColor(0.2f, 0.9f, 0.3f, (1.0f - pulse) * 0.5f), 0, 1.0f);
-                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.3f, 0.9f, 0.4f, 1.0f));
-                ImGui::SetCursorScreenPos(ImVec2(badgePos.x + 24.0f * sc, badgePos.y + (badgeSize.y - ImGui::GetFontSize()) * 0.5f));
-                ImGui::Text("ACTIVE");
-                ImGui::PopStyleColor();
+                        ImVec2 tabPos = ImVec2(wPos.x + tabsStartX, wPos.y + 14.0f);
+                        ImVec2 tabMin = tabPos;
+                        ImVec2 tabMax = ImVec2(tabPos.x + tabWidths[t], tabPos.y + 34.0f);
 
-                // Right controls: avatar + close
-                char* user = getenv("USERNAME");
+                        // Hit area
+                        ImGui::SetCursorPos(ImVec2(tabPos.x - wPos.x, tabPos.y - wPos.y));
+                        char tabId[32];
+                        snprintf(tabId, sizeof(tabId), "##tab%d", t);
+                        ImGui::PushID(tabId);
+                        ImGui::InvisibleButton(tabId, ImVec2(tabWidths[t], 34.0f));
+                        bool tabClicked = ImGui::IsItemClicked();
+                        bool tabHov = ImGui::IsItemHovered();
+                        ImGui::PopID();
+
+                        // Pill background with animated alpha
+                        float pillAlpha = tAnim * 0.85f;
+                        float hoverBoost = tabHov ? 0.12f : 0.0f;
+                        draw->AddRectFilled(tabMin, tabMax,
+                            ImColor(accV.x, accV.y, accV.z, Animations::Clamp01(pillAlpha + hoverBoost)), 7.0f);
+
+                        // Glow behind active pill
+                        if (tAnim > 0.1f) {
+                            draw->AddRectFilled(
+                                ImVec2(tabMin.x - 3.0f, tabMin.y - 3.0f),
+                                ImVec2(tabMax.x + 3.0f, tabMax.y + 3.0f),
+                                ImColor(accV.x, accV.y, accV.z, 0.08f * tAnim), 10.0f);
+                        }
+
+                        // Label text
+                        float textAlpha = 0.55f + tAnim * 0.45f;
+                        ImU32 textCol = ImColor(1.0f, 1.0f, 1.0f, textAlpha);
+                        ImVec2 textSize = ImGui::CalcTextSize(tabLabels[t]);
+                        ImVec2 textPos = ImVec2(
+                            tabMin.x + (tabWidths[t] - textSize.x) * 0.5f,
+                            tabMin.y + (34.0f - textSize.y) * 0.5f);
+                        draw->AddText(textPos, textCol, tabLabels[t]);
+
+                        if (tabClicked && !isActive) {
+                            g_previousTab = g_currentTab;
+                            g_currentTab = t;
+                            g_tabChangeTime = GetTickCount64();
+                            g_tabAnim = 0.0f;
+                            g_currentSettingsModule = "";
+                            // Reset card entrance animations for stagger replay
+                            for (auto it = g_elementAnims.begin(); it != g_elementAnims.end(); ) {
+                                if (it->first.find("card_ent_") == 0 || it->first.find("card_stag_") == 0)
+                                    it = g_elementAnims.erase(it);
+                                else ++it;
+                            }
+                        }
+
+                        tabsStartX += tabWidths[t] + 6.0f;
+                    }
+                }
+
+                // Right controls: close
                 float closeSz = 26.0f * sc;
-                float avatarSize = 32.0f * sc;
                 float rightOff = 18.0f * sc;
-                float gap = 14.0f * sc;
 
-                // Close button (custom drawn X)
-                ImVec2 closePos = ImVec2(wSize.x - rightOff - closeSz, (headerH - closeSz) * 0.5f);
-                ImGui::SetCursorPos(closePos);
-                ImGui::PushID("hdr_close");
-                ImGui::InvisibleButton("##hdr_close", ImVec2(closeSz, closeSz));
-                bool cHov = ImGui::IsItemHovered();
-                if (ImGui::IsItemClicked()) {
-                    g_showMenu = false;
-                    GUI::g_showMenu = false;
-                    ClickGUI::g_enabled = false;
+                // ── Close button (animated hover) ──
+                float closeHovAnim = 0.0f;
+                {
+                    std::string cKey = "hdr_close_hov";
+                    if (g_elementAnims.find(cKey) == g_elementAnims.end()) g_elementAnims[cKey] = 0.0f;
+                    ImVec2 closePos = ImVec2(wSize.x - rightOff - closeSz, (headerH - closeSz) * 0.5f);
+                    ImGui::SetCursorPos(closePos);
+                    ImGui::PushID("hdr_close");
+                    ImGui::InvisibleButton("##hdr_close", ImVec2(closeSz, closeSz));
+                    bool cHov = ImGui::IsItemHovered();
+                    if (ImGui::IsItemClicked()) {
+                        g_showMenu = false;
+                        GUI::g_showMenu = false;
+                        ClickGUI::g_enabled = false;
+                    }
+                    float cTarget = cHov ? 1.0f : 0.0f;
+                    g_elementAnims[cKey] = Animations::Approach(g_elementAnims[cKey], cTarget, dt, 16.0f);
+                    closeHovAnim = g_elementAnims[cKey];
+                    ImVec2 cC = ImVec2(wPos.x + closePos.x + closeSz * 0.5f, wPos.y + closePos.y + closeSz * 0.5f);
+                    // Pulsing red background on hover
+                    float pulse = sinf((float)ImGui::GetTime() * 4.0f) * 0.5f + 0.5f;
+                    float closeRadius = closeSz * 0.5f * (1.0f + closeHovAnim * 0.1f); // slight scale
+                    if (closeHovAnim > 0.01f) {
+                        draw->AddCircleFilled(cC, closeRadius, ImColor(1.0f, 0.2f, 0.2f, closeHovAnim * (0.15f + pulse * 0.08f)));
+                        draw->AddCircle(cC, closeRadius, ImColor(1.0f, 0.2f, 0.2f, closeHovAnim * 0.4f), 0, 1.5f);
+                    }
+                    ImU32 xCol = ImColor(
+                        0.98f + closeHovAnim * 0.02f,
+                        0.43f - closeHovAnim * 0.0f,
+                        0.43f - closeHovAnim * 0.0f,
+                        0.51f + closeHovAnim * 0.49f);
+                    float xhw = 7.0f * sc;
+                    draw->AddLine(ImVec2(cC.x - xhw, cC.y - xhw), ImVec2(cC.x + xhw, cC.y + xhw), xCol, 1.8f);
+                    draw->AddLine(ImVec2(cC.x + xhw, cC.y - xhw), ImVec2(cC.x - xhw, cC.y + xhw), xCol, 1.8f);
+                    if (cHov) ImGui::SetTooltip("Close Menu");
+                    ImGui::PopID();
                 }
-                ImVec2 cC = ImVec2(wPos.x + closePos.x + closeSz * 0.5f, wPos.y + closePos.y + closeSz * 0.5f);
-                if (cHov) {
-                    draw->AddCircleFilled(cC, closeSz * 0.5f, ImColor(1.0f, 0.2f, 0.2f, 0.15f));
-                    draw->AddCircle(cC, closeSz * 0.5f, ImColor(1.0f, 0.2f, 0.2f, 0.4f), 0, 1.5f);
-                }
-                ImU32 xCol = cHov ? ImColor(255, 110, 110, 255) : ImColor(255, 255, 255, 130);
-                float xhw = 7.0f * sc;
-                draw->AddLine(ImVec2(cC.x - xhw, cC.y - xhw), ImVec2(cC.x + xhw, cC.y + xhw), xCol, 1.8f);
-                draw->AddLine(ImVec2(cC.x + xhw, cC.y - xhw), ImVec2(cC.x - xhw, cC.y + xhw), xCol, 1.8f);
-                if (cHov) ImGui::SetTooltip("Close Menu");
-                ImGui::PopID();
-
-                // Avatar (to the left of the close button)
-                ImVec2 avatarPos = ImVec2(closePos.x - gap - avatarSize, (headerH - avatarSize) * 0.5f);
-                ImVec2 avatarScreenPos = ImVec2(wPos.x + avatarPos.x, wPos.y + avatarPos.y);
-                float radius = avatarSize * 0.5f;
-                ImVec2 center = ImVec2(avatarScreenPos.x + radius, avatarScreenPos.y + radius);
-                draw->AddCircleFilled(center, radius, ImColor(g_colorAccentSoft.x, g_colorAccentSoft.y, g_colorAccentSoft.z, 0.6f));
-                draw->AddCircle(center, radius, ImColor(accV.x, accV.y, accV.z, 0.8f), 0, 1.5f);
-                char displayLetter = (user && strlen(user) > 0) ? toupper(user[0]) : 'U';
-                char letterStr[2] = { displayLetter, '\0' };
-                ImGui::PushFont(ImGui::GetIO().Fonts->Fonts[0]);
-                ImVec2 letterSize = ImGui::CalcTextSize(letterStr);
-                draw->AddText(ImVec2(center.x - letterSize.x * 0.5f, center.y - letterSize.y * 0.5f), ImColor(255, 255, 255, 230), letterStr);
-                ImGui::PopFont();
             }
             ImGui::EndChild();
             
-            // ── Sidebar Area ──
-            ImGui::BeginChild("Sidebar", ImVec2(224.0f * sc, 0), false, ImGuiWindowFlags_NoScrollbar);
-            {
-                ImDrawList* sDraw = ImGui::GetWindowDrawList();
-                ImVec2 sbPos = ImGui::GetWindowPos();
-                ImVec4 accV = g_colorAccent;
-                float sbW = ImGui::GetWindowWidth();
-
-                // Vertical divider on the right edge
-                sDraw->AddLine(ImVec2(sbPos.x + sbW - 1.0f, sbPos.y + 8.0f),
-                    ImVec2(sbPos.x + sbW - 1.0f, sbPos.y + ImGui::GetWindowHeight() - 8.0f),
-                    ImColor(0.5f, 0.5f, 0.55f, 0.18f), 1.0f);
-
-                // Section label
-                ImGui::SetCursorPos(ImVec2(20.0f * sc, 18.0f * sc));
-                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.45f, 0.45f, 0.52f, 0.9f));
-                ImGui::Text("NAVIGATION");
-                ImGui::PopStyleColor();
-                ImGui::Spacing();
-
-                // Sliding selection pill (drawn behind the buttons)
-                float pillX = sbPos.x + 8.0f;
-                float pillW = sbW - 18.0f;
-                float pillH = 54.0f;
-                float pillY = sbPos.y + g_sidebarIndicatorY;
-                if (pillY > sbPos.y + 4.0f) {
-                    ImVec2 pMin = ImVec2(pillX, pillY);
-                    ImVec2 pMax = ImVec2(pillX + pillW, pillY + pillH);
-                    sDraw->AddRectFilled(ImVec2(pMin.x - 2.0f, pMin.y - 2.0f), ImVec2(pMax.x + 2.0f, pMax.y + 2.0f),
-                        ImColor(accV.x, accV.y, accV.z, 0.10f), 11.0f);
-                    sDraw->AddRectFilled(pMin, pMax, ImColor(accV.x, accV.y, accV.z, 0.16f), 9.0f);
-                    sDraw->AddRect(pMin, pMax, ImColor(accV.x, accV.y, accV.z, 0.40f), 9.0f, 0, 1.0f);
-                    sDraw->AddRectFilled(ImVec2(pMin.x + 3.0f, pMin.y + 7.0f), ImVec2(pMin.x + 5.0f, pMax.y - 7.0f),
-                        ImColor(accV.x, accV.y, accV.z, 0.95f), 1.5f);
-                }
-
-                ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 4.0f);
-
-                // Navigation buttons
-                RenderSidebarButton("Combat", 0);
-                RenderSidebarButton("Movement", 1);
-                RenderSidebarButton("Visuals", 2);
-                RenderSidebarButton("Misc", 3);
-                RenderSidebarButton("Terminal", 4);
-                RenderSidebarButton("Info", 5);
-                RenderSidebarButton("IRC Chat", 6);
-                RenderSidebarButton("Config Market", 7);
-
-                // Bottom profile card
-                float profileH = 56.0f * sc;
-                ImVec2 cardMin = ImVec2(sbPos.x + 8.0f, sbPos.y + ImGui::GetWindowHeight() - profileH - 10.0f);
-                ImVec2 cardMax = ImVec2(cardMin.x + pillW, sbPos.y + ImGui::GetWindowHeight() - 8.0f);
-                sDraw->AddRectFilled(cardMin, cardMax, ImColor(0.10f, 0.10f, 0.14f, 0.60f), 10.0f);
-                sDraw->AddRect(cardMin, cardMax, ImColor(accV.x, accV.y, accV.z, 0.25f), 10.0f, 0, 1.0f);
-
-                char* user = getenv("USERNAME");
-                char disp = (user && strlen(user) > 0) ? toupper(user[0]) : 'U';
-                char dStr[2] = { disp, '\0' };
-
-                // Mini avatar
-                ImVec2 pc = ImVec2(cardMin.x + 22.0f, cardMin.y + profileH * 0.5f);
-                sDraw->AddCircleFilled(pc, 13.0f, ImColor(accV.x, accV.y, accV.z, 0.5f));
-                sDraw->AddCircle(pc, 13.0f, ImColor(accV.x, accV.y, accV.z, 0.9f), 0, 1.5f);
-                ImGui::PushFont(GUI::g_fontH3 ? GUI::g_fontH3 : ImGui::GetFont());
-                ImVec2 ds = ImGui::CalcTextSize(dStr);
-                sDraw->AddText(ImVec2(pc.x - ds.x * 0.5f, pc.y - ds.y * 0.5f), ImColor(255, 255, 255, 220), dStr);
-                ImGui::PopFont();
-
-                // Username + status
-                sDraw->AddText(ImVec2(cardMin.x + 44.0f, cardMin.y + 12.0f), ImColor(215, 215, 225, 220), user ? user : "User");
-                sDraw->AddText(ImVec2(cardMin.x + 44.0f, cardMin.y + 33.0f), IM_COL32(102, 229, 128, 200), "Online");
-            }
-            ImGui::EndChild();
-            
-            ImGui::SameLine();
-            
-            // Content Area with Tab Animation
+            // ── Content Area (full width, no sidebar) ──
             float tab_e = Animations::EaseOutExpo(GUI::g_tabAnim);
             float slide = (1.0f - tab_e) * 30.0f;
             
-            ImGui::SetCursorPosX(ImGui::GetCursorPosX() + 10);
+            ImGui::SetCursorPosX(ImGui::GetCursorPosX() + 16);
             ImGui::BeginChild("ContentAreaParent", ImVec2(0, 0), false, ImGuiWindowFlags_NoScrollbar);
             {
                 ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 12);
@@ -1525,26 +1710,69 @@ void GUI::RenderMenu(float screenWidth, float screenHeight) {
                 
                 ImGui::PushStyleVar(ImGuiStyleVar_Alpha, tab_e * e);
                 
-                const char* tabNames[] = { "Combat", "Movement", "Visuals", "Misc", "Terminal", "Info", "IRC Chat", "Config Market" };
-                ImGui::PushFont(ImGui::GetIO().Fonts->Fonts[0]);
-                ImVec2 tabTextPos = ImGui::GetCursorScreenPos();
-                RenderTypingText(ImGui::GetWindowDrawList(), ImGui::GetFont(), ImGui::GetFontSize(), tabTextPos, tabNames[GUI::g_currentTab], tab_e, g_colorAccent, 5.0f);
-                ImVec2 titleSz = ImGui::CalcTextSize(tabNames[GUI::g_currentTab]);
-                ImVec2 titleEnd = ImVec2(tabTextPos.x + titleSz.x, tabTextPos.y + titleSz.y + 10.0f);
-                ImGui::Dummy(ImVec2(titleSz.x, ImGui::GetFontSize() + 10.0f));
-                ImGui::PopFont();
+                const char* tabNames[] = { "Mods", "Profiles", "Terminal", "Info", "IRC Chat" };
+                ImVec4 accV = g_colorAccent;
+                
+                // ── Filter pills with animated underline (only for Mods tab) ──
+                if (GUI::g_currentTab == 0) {
+                    const char* filterLabels[] = { "ALL", "VISUAL", "MISC" };
+                    int filterIds[] = { 0, 1, 2 };
+                    ImDrawList* filterDraw = ImGui::GetWindowDrawList();
+                    for (int f = 0; f < 3; f++) {
+                        if (f > 0) ImGui::SameLine(0, 6);
+                        bool isActive = (g_currentFilter == (ModFilter)filterIds[f]);
 
-                // Animated accent underline that grows from the title to the edge
-                ImDrawList* cDraw = ImGui::GetWindowDrawList();
-                float rightEdge = ImGui::GetWindowPos().x + ImGui::GetWindowWidth();
-                cDraw->AddLine(ImVec2(titleEnd.x, titleEnd.y), ImVec2(rightEdge, titleEnd.y),
-                    ImColor(0.45f, 0.45f, 0.50f, 0.25f), 1.0f);
-                if (tab_e > 0.001f) {
-                    float growW = (rightEdge - titleEnd.x) * Animations::EaseOutQuart(tab_e);
-                    cDraw->AddLine(ImVec2(titleEnd.x, titleEnd.y), ImVec2(titleEnd.x + growW, titleEnd.y),
-                        ImColor(g_colorAccent.x, g_colorAccent.y, g_colorAccent.z, 0.75f), 2.0f);
+                        // Animated pill glow
+                        std::string fpKey = "filt_pill_" + std::to_string(f);
+                        if (g_elementAnims.find(fpKey) == g_elementAnims.end()) g_elementAnims[fpKey] = isActive ? 1.0f : 0.0f;
+                        float fpTarget = isActive ? 1.0f : 0.0f;
+                        g_elementAnims[fpKey] = Animations::Approach(g_elementAnims[fpKey], fpTarget, dt, 12.0f);
+                        float fpAnim = g_elementAnims[fpKey];
+
+                        ImVec4 bg = isActive
+                            ? ImVec4(accV.x, accV.y, accV.z, 0.85f)
+                            : ImVec4(0.08f, 0.08f, 0.10f, 0.5f);
+                        ImVec4 textCol = isActive
+                            ? ImVec4(1, 1, 1, 1)
+                            : ImVec4(0.6f, 0.6f, 0.65f, 1.0f);
+                        ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 5.0f);
+                        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(12, 4));
+                        ImGui::PushStyleColor(ImGuiCol_Button, bg);
+                        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, isActive ? bg : ImVec4(accV.x, accV.y, accV.z, 0.4f));
+                        ImGui::PushStyleColor(ImGuiCol_ButtonActive, bg);
+                        ImGui::PushStyleColor(ImGuiCol_Text, textCol);
+                        char fId[32];
+                        snprintf(fId, sizeof(fId), "%s##filt%d", filterLabels[f], f);
+                        ImVec2 pillBefore = ImGui::GetCursorScreenPos();
+                        if (ImGui::Button(fId, ImVec2(0, 26))) {
+                            g_currentFilter = (ModFilter)filterIds[f];
+                        }
+                        ImVec2 pillAfter = ImGui::GetItemRectMax();
+                        // Animated underline below active pill
+                        if (fpAnim > 0.01f) {
+                            float underlineW = (pillAfter.x - pillBefore.x) * Animations::EaseOutQuart(fpAnim);
+                            float cx = (pillBefore.x + pillAfter.x) * 0.5f;
+                            filterDraw->AddRectFilled(
+                                ImVec2(cx - underlineW * 0.5f, pillAfter.y + 1),
+                                ImVec2(cx + underlineW * 0.5f, pillAfter.y + 3),
+                                ImColor(accV.x, accV.y, accV.z, fpAnim * 0.9f), 1.5f);
+                        }
+                        ImGui::PopStyleColor(4);
+                        ImGui::PopStyleVar(2);
+                    }
+                    ImGui::SameLine(0, 12);
+                    float searchW = 160.0f;
+                    ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 5.0f);
+                    ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(10, 4));
+                    ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.08f, 0.08f, 0.10f, 0.8f));
+                    ImGui::PushItemWidth(searchW);
+                    ImGui::InputTextWithHint("##search", "Search mods...", g_searchBuffer, sizeof(g_searchBuffer));
+                    ImGui::PopItemWidth();
+                    ImGui::PopStyleColor();
+                    ImGui::PopStyleVar(2);
+                    ImGui::Separator();
+                    ImGui::Spacing();
                 }
-                ImGui::Spacing();
 
                 // Styled scrollbar for the content area
                 ImGui::PushStyleColor(ImGuiCol_ScrollbarBg, ImVec4(0, 0, 0, 0));
@@ -1555,85 +1783,115 @@ void GUI::RenderMenu(float screenWidth, float screenHeight) {
                 ImGui::PushStyleVar(ImGuiStyleVar_ScrollbarRounding, 3.0f);
                 ImGui::BeginChild("ContentScroll", ImVec2(0, 0), false, ImGuiWindowFlags_AlwaysVerticalScrollbar);
                 {
-                    // Module cards (single column, consistent full-width layout)
-                    auto RenderCard = [&](const char* id, void (*fn)(), float alphaMul) {
-                        // AutoResizeY makes the child wrap only its content. A size of (0,0) would
-                        // otherwise fill the entire remaining scroll area, producing enormous gaps.
-                        ImGui::BeginChild(id, ImVec2(0, 0), ImGuiChildFlags_AutoResizeY, ImGuiWindowFlags_NoScrollbar);
-                        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(14.0f, 10.0f));
-                        {
-                            ImDrawList* d = ImGui::GetWindowDrawList();
-                            ImVec2 cs = ImGui::GetCursorScreenPos();
+                    // LEGACY-style: settings view or 3-column card grid
+                    if (!g_currentSettingsModule.empty()) {
+                        // Settings view with back button
+                        ImGui::SetCursorPos(ImVec2(20, 8));
+                        ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 5.0f);
+                        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(g_colorAccent.x, g_colorAccent.y, g_colorAccent.z, 0.85f));
+                        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(g_colorAccent.x * 1.1f, g_colorAccent.y * 1.1f, g_colorAccent.z * 1.1f, 1.0f));
+                        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(g_colorAccent.x * 0.7f, g_colorAccent.y * 0.7f, g_colorAccent.z * 0.7f, 1.0f));
 
-                            // Split the child's draw list so the card backdrop (fill/border/accent
-                            // bar) is emitted BELOW the widget content instead of over it.
-                            d->ChannelsSplit(2);
-                            d->ChannelsSetCurrent(1);
-
-                            fn();
-
-                            ImVec2 ce = ImGui::GetItemRectMax();
-
-                            float ch = (ce.y - cs.y) + 12.0f;
-                            float cMaxX = ImGui::GetWindowPos().x + ImGui::GetWindowWidth() - 8.0f;
-                            ImVec2 cMin = ImVec2(cs.x - 14.0f, cs.y - 10.0f);
-                            ImVec2 cMax = ImVec2(cMaxX, cs.y - 10.0f + ch);
-
-                            d->ChannelsSetCurrent(0);
-                            d->AddRectFilled(cMin, cMax, IM_COL32(16, 16, 24, (int)(36 * alphaMul)), 10.0f);
-                            d->AddRect(cMin, cMax, ImColor(g_colorAccent.x, g_colorAccent.y, g_colorAccent.z, 0.14f * alphaMul), 10.0f, 0, 1.0f);
-                            d->AddRectFilled(ImVec2(cMin.x + 3.0f, cMin.y + 12.0f), ImVec2(cMin.x + 5.0f, cMax.y - 12.0f),
-                                ImColor(g_colorAccent.x, g_colorAccent.y, g_colorAccent.z, 0.55f * alphaMul), 1.5f);
-                            d->ChannelsMerge();
+                        ImTextureID backIcon = g_moduleIcons.count("back") ? g_moduleIcons["back"] : (ImTextureID)0;
+                        if (backIcon) {
+                            if (ImGui::ImageButton("##Back", backIcon, ImVec2(20, 20))) {
+                                g_currentSettingsModule = "";
+                            }
+                        } else {
+                            if (ImGui::Button("< Back", ImVec2(70, 26))) {
+                                g_currentSettingsModule = "";
+                            }
                         }
+                        ImGui::PopStyleColor(3);
                         ImGui::PopStyleVar();
-                        ImGui::EndChild();
-                        ImGui::Spacing();
-                    };
 
-                    // Dynamic Tab Content
-                    switch (GUI::g_currentTab) {
-                        case 0: // Combat
-                            RenderCard("c_reach", &Reach::RenderMenu, e);
-                            RenderCard("c_hitbox", &Hitbox::RenderMenu, e);
-                            break;
-                        case 1: // Movement
-                            RenderCard("m_sprint", &AutoSprint::RenderMenu, e);
-                            RenderCard("m_glide", &Glide::RenderMenu, e);
-                            RenderCard("m_fly", &Fly::RenderMenu, e);
-                            RenderCard("m_timer", &Timer::RenderMenu, e);
-                            break;
-                        case 2: // Visuals
-                            RenderCard("v_wm", &Watermark::RenderMenu, e);
-                            RenderCard("v_al", &ArrayList::RenderMenu, e);
-                            RenderCard("v_ri", &RenderInfo::RenderMenu, e);
-                            RenderCard("v_ks", &Keystrokes::RenderMenu, e);
-                            RenderCard("v_cps", &CPSCounter::RenderMenu, e);
-                            RenderCard("v_fps", &FPSOverlay::RenderMenu, e);
-                            RenderCard("v_ping", &PingCounter::RenderMenu, e);
-                            RenderCard("v_pl", &PlayerInfo::RenderMenu, e);
-                            RenderCard("v_fb", &FullBright::RenderMenu, e);
-                            RenderCard("v_mb", &MotionBlur::RenderMenu, e);
-                            RenderCard("v_cg", &ClickGUI::RenderMenu, e);
-                            break;
-                        case 3: // Misc
-                            RenderCard("x_fps", &UnlockFPS::RenderMenu, e);
-                            RenderCard("x_ac", &AutoClicker::RenderMenu, e);
-                            RenderCard("x_afk", &AntiAFK::RenderMenu, e);
-                            RenderCard("x_ss", &Screenshot::RenderMenu, e);
-                            break;
-                        case 4: // Terminal
-                            Terminal::RenderConsole();
-                            break;
-                        case 5: // Info
-                            Info::RenderMenu();
-                            break;
-                        case 6: // IRC Chat
-                            IRChat::RenderMenu();
-                            break;
-                        case 7: // Config Market
-                            GUI::RenderConfigMarket();
-                            break;
+                        ImGui::SameLine();
+                        std::string modName = g_currentSettingsModule;
+                        for (char& c : modName) c = std::toupper(c);
+                        ImGui::TextColored(g_colorAccent, "%s SETTINGS", modName.c_str());
+
+                        ImGui::Spacing();
+                        ImGui::Separator();
+                        ImGui::Spacing();
+
+                        ImGui::SetCursorPosX(20);
+                        ImGui::BeginChild("SettingsScroll", ImVec2(ImGui::GetWindowWidth() - 32, 0), false);
+
+                        if (g_currentSettingsModule == "renderinfo") RenderInfo::RenderMenu();
+                        else if (g_currentSettingsModule == "watermark") Watermark::RenderMenu();
+                        else if (g_currentSettingsModule == "arraylist") ArrayList::RenderMenu();
+                        else if (g_currentSettingsModule == "keystrokes") Keystrokes::RenderMenu();
+                        else if (g_currentSettingsModule == "cpscounter") CPSCounter::RenderMenu();
+                        else if (g_currentSettingsModule == "fpscounter") FPSOverlay::RenderMenu();
+                        else if (g_currentSettingsModule == "pingcounter") PingCounter::RenderMenu();
+                        else if (g_currentSettingsModule == "playerinfo") PlayerInfo::RenderMenu();
+                        else if (g_currentSettingsModule == "fullbright") FullBright::RenderMenu();
+                        else if (g_currentSettingsModule == "motionblur") MotionBlur::RenderMenu();
+                        else if (g_currentSettingsModule == "clickgui" || g_currentSettingsModule == "gear") ClickGUI::RenderMenu();
+                        else if (g_currentSettingsModule == "unlockfps") UnlockFPS::RenderMenu();
+                        else if (g_currentSettingsModule == "antiAfk") AntiAFK::RenderMenu();
+                        else if (g_currentSettingsModule == "screenshot") Screenshot::RenderMenu();
+                        else if (g_currentSettingsModule == "autosprint") AutoSprint::RenderMenu();
+                        else if (g_currentSettingsModule == "nohurtcam") NoHurtCam::RenderMenu();
+
+                        ImGui::EndChild();
+                    } else {
+                        // 3-column card grid
+                        float gridLeft = 16.0f;
+                        float contentWidth = ImGui::GetWindowWidth() - 32;
+                        float cardSpacing = 16.0f;
+                        int columns = 3;
+                        float cardW = (contentWidth - (cardSpacing * (columns + 1))) / columns;
+                        int col = 0;
+
+                        // Helper: check search + filter
+                        auto PassesFilter = [](const char* name, const char* category) -> bool {
+                            if (g_searchBuffer[0] != '\0') {
+                                std::string search = g_searchBuffer;
+                                std::string modName = name;
+                                std::transform(search.begin(), search.end(), search.begin(), ::tolower);
+                                std::transform(modName.begin(), modName.end(), modName.begin(), ::tolower);
+                                if (modName.find(search) == std::string::npos) return false;
+                            }
+                            if (g_currentFilter == Filter_Visual && std::string(category) != "visual") return false;
+                            if (g_currentFilter == Filter_Misc && std::string(category) != "misc") return false;
+                            return true;
+                        };
+
+                        // Reset card stagger index for entrance animation
+                        g_cardStaggerIndex = 0;
+                        switch (GUI::g_currentTab) {
+                            case 0: // Mods (all modules)
+                                if (PassesFilter("Watermark", "visual")) { if (col > 0) ImGui::SameLine(0, cardSpacing); ImGui::PushID("Watermark"); RenderModuleCard("Watermark", "watermark", &Watermark::g_showWatermark); ImGui::PopID(); g_cardStaggerIndex++; col++; if (col >= columns) col = 0; }
+                                if (PassesFilter("ArrayList", "visual")) { if (col > 0) ImGui::SameLine(0, cardSpacing); ImGui::PushID("ArrayList"); RenderModuleCard("ArrayList", "arraylist", &ArrayList::g_enabled); ImGui::PopID(); g_cardStaggerIndex++; col++; if (col >= columns) col = 0; }
+                                if (PassesFilter("Render Info", "visual")) { if (col > 0) ImGui::SameLine(0, cardSpacing); ImGui::PushID("Render Info"); RenderModuleCard("Render Info", "renderinfo", &RenderInfo::g_showRenderInfo); ImGui::PopID(); g_cardStaggerIndex++; col++; if (col >= columns) col = 0; }
+                                if (PassesFilter("Keystrokes", "visual")) { if (col > 0) ImGui::SameLine(0, cardSpacing); ImGui::PushID("Keystrokes"); RenderModuleCard("Keystrokes", "keystrokes", &Keystrokes::g_showKeystrokes); ImGui::PopID(); g_cardStaggerIndex++; col++; if (col >= columns) col = 0; }
+                                if (PassesFilter("CPS Counter", "visual")) { if (col > 0) ImGui::SameLine(0, cardSpacing); ImGui::PushID("CPS Counter"); RenderModuleCard("CPS Counter", "cpscounter", &CPSCounter::g_showCpsCounter); ImGui::PopID(); g_cardStaggerIndex++; col++; if (col >= columns) col = 0; }
+                                if (PassesFilter("FPS Counter", "visual")) { if (col > 0) ImGui::SameLine(0, cardSpacing); ImGui::PushID("FPS Counter"); RenderModuleCard("FPS Counter", "fpscounter", &FPSOverlay::g_showFpsOverlay); ImGui::PopID(); g_cardStaggerIndex++; col++; if (col >= columns) col = 0; }
+                                if (PassesFilter("Ping Counter", "visual")) { if (col > 0) ImGui::SameLine(0, cardSpacing); ImGui::PushID("Ping Counter"); RenderModuleCard("Ping Counter", "renderinfo", &PingCounter::g_showPingCounter); ImGui::PopID(); g_cardStaggerIndex++; col++; if (col >= columns) col = 0; }
+                                if (PassesFilter("Player Info", "visual")) { if (col > 0) ImGui::SameLine(0, cardSpacing); ImGui::PushID("Player Info"); RenderModuleCard("Player Info", "renderinfo", &PlayerInfo::g_showPlayerInfo); ImGui::PopID(); g_cardStaggerIndex++; col++; if (col >= columns) col = 0; }
+                                if (PassesFilter("Full Bright", "visual")) { if (col > 0) ImGui::SameLine(0, cardSpacing); ImGui::PushID("Full Bright"); RenderModuleCard("Full Bright", "visuals", &FullBright::g_fullBrightEnabled, nullptr, [](bool e) { if (e) FullBright::Enable(); else FullBright::Disable(); }); ImGui::PopID(); g_cardStaggerIndex++; col++; if (col >= columns) col = 0; }
+                                if (PassesFilter("Motion Blur", "visual")) { if (col > 0) ImGui::SameLine(0, cardSpacing); ImGui::PushID("Motion Blur"); RenderModuleCard("Motion Blur", "motionblur", &MotionBlur::g_motionBlurEnabled); ImGui::PopID(); g_cardStaggerIndex++; col++; if (col >= columns) col = 0; }
+                                if (PassesFilter("Click GUI", "visual")) { if (col > 0) ImGui::SameLine(0, cardSpacing); ImGui::PushID("Click GUI"); RenderModuleCard("Click GUI", "gear", &ClickGUI::g_enabled); ImGui::PopID(); g_cardStaggerIndex++; col++; if (col >= columns) col = 0; }
+                                if (PassesFilter("Toggle Sprint", "misc")) { if (col > 0) ImGui::SameLine(0, cardSpacing); ImGui::PushID("Toggle Sprint"); RenderModuleCard("Toggle Sprint", "autosprint", &AutoSprint::g_autoSprintEnabled, nullptr, [](bool e) { if (e) AutoSprint::Enable(); else AutoSprint::Disable(); }); ImGui::PopID(); g_cardStaggerIndex++; col++; if (col >= columns) col = 0; }
+                                if (PassesFilter("Unlock FPS", "misc")) { if (col > 0) ImGui::SameLine(0, cardSpacing); ImGui::PushID("Unlock FPS"); RenderModuleCard("Unlock FPS", "unlockfps", &UnlockFPS::g_unlockFpsEnabled); ImGui::PopID(); g_cardStaggerIndex++; col++; if (col >= columns) col = 0; }
+                                if (PassesFilter("Anti-AFK", "misc")) { if (col > 0) ImGui::SameLine(0, cardSpacing); ImGui::PushID("Anti-AFK"); RenderModuleCard("Anti-AFK", "misc", &AntiAFK::g_enabled); ImGui::PopID(); g_cardStaggerIndex++; col++; if (col >= columns) col = 0; }
+                                if (PassesFilter("Screenshot", "misc")) { if (col > 0) ImGui::SameLine(0, cardSpacing); ImGui::PushID("Screenshot"); RenderModuleCard("Screenshot", "misc", &Screenshot::g_enabled); ImGui::PopID(); g_cardStaggerIndex++; col++; if (col >= columns) col = 0; }
+                                if (PassesFilter("NoHurtCam", "misc")) { if (col > 0) ImGui::SameLine(0, cardSpacing); ImGui::PushID("NoHurtCam"); RenderModuleCard("NoHurtCam", "nohurtcam", &NoHurtCam::g_enabled, nullptr, [](bool e) { if (e) NoHurtCam::Enable(); else NoHurtCam::Disable(); }); ImGui::PopID(); g_cardStaggerIndex++; col++; if (col >= columns) col = 0; }
+                                break;
+                            case 1: // Profiles
+                                GUI::RenderProfiles();
+                                break;
+                            case 2: // Terminal
+                                Terminal::RenderConsole();
+                                break;
+                            case 3: // IRC Chat
+                                IRChat::RenderMenu();
+                                break;
+                            case 4: // Info
+                                Info::RenderMenu();
+                                break;
+                        }
                     }
                 }
                 ImGui::EndChild();
@@ -1651,7 +1909,7 @@ void GUI::RenderMenu(float screenWidth, float screenHeight) {
         ImGui::End();
 
         ImGui::PopStyleVar(3); // Regular-mode layout overrides (ItemSpacing / ItemInnerSpacing / FramePadding)
-        ImGui::PopStyleColor();
+        ImGui::PopStyleColor(2); // WindowBg + Border
         ImGui::PopStyleVar(3);
 
         if (GUI::g_ircShiftAnim > 0.001f) {
@@ -1748,8 +2006,11 @@ void GUI::RenderNotification(float screenWidth, float screenHeight) {
 
     if (anim <= 0.01f) return;
 
-    ImVec2 size = ImVec2(320, 70);
-    ImVec2 pos = ImVec2(screenWidth - (size.x + 20) * anim, screenHeight - size.y - 20);
+    ImVec2 size = ImVec2(340, 80);
+    float targetX = screenWidth - size.x - 20;
+    float targetY = screenHeight - size.y - 20;
+    // Slide in from the right
+    ImVec2 pos = ImVec2(targetX + (1.0f - anim) * 80.0f, targetY);
     
     ImDrawList* draw = ImGui::GetForegroundDrawList();
     
@@ -1767,15 +2028,29 @@ void GUI::RenderNotification(float screenWidth, float screenHeight) {
     draw->AddCircleFilled(ImVec2(pos.x + 35, pos.y + size.y * 0.5f), 12.0f, ImColor(g_colorAccent.x, g_colorAccent.y, g_colorAccent.z, 0.2f));
     draw->AddCircle(ImVec2(pos.x + 35, pos.y + size.y * 0.5f), 12.0f, ImColor(g_colorAccent.x, g_colorAccent.y, g_colorAccent.z, 0.8f), 0, 1.5f);
     
-    draw->AddText(ImVec2(pos.x + 65, pos.y + 15), ImColor(255, 255, 255), g_notifTitle);
-    draw->AddText(ImVec2(pos.x + 65, pos.y + 35), ImColor(160, 160, 175), g_notifMessage);
+    draw->AddText(ImVec2(pos.x + 65, pos.y + 12), ImColor(255, 255, 255), g_notifTitle);
+    // Render message with newline support
+    const char* nl = strchr(g_notifMessage, '\n');
+    if (nl) {
+        // First line up to \n
+        char line1[128] = {};
+        size_t len = (size_t)(nl - g_notifMessage);
+        if (len >= sizeof(line1)) len = sizeof(line1) - 1;
+        memcpy(line1, g_notifMessage, len);
+        line1[len] = '\0';
+        draw->AddText(ImVec2(pos.x + 65, pos.y + 32), ImColor(160, 160, 175), line1);
+        // Second line after \n
+        draw->AddText(ImVec2(pos.x + 65, pos.y + 48), ImColor(160, 160, 175), nl + 1);
+    } else {
+        draw->AddText(ImVec2(pos.x + 65, pos.y + 32), ImColor(160, 160, 175), g_notifMessage);
+    }
     
     // Progress Bar
     float progress = 1.0f - (elapsed / duration);
     draw->AddRectFilled(ImVec2(pos.x + 10, pos.y + size.y - 6), ImVec2(pos.x + 10 + (size.x - 20) * progress, pos.y + size.y - 3), ImColor(g_colorAccent.x, g_colorAccent.y, g_colorAccent.z, 0.8f), 2.0f);
 }
 
-void* GUI::LoadTextureFromResource(int resourceId) {
+void* GUI::LoadTextureFromResource(int resourceId, int* outWidth, int* outHeight) {
     HRSRC hRes = FindResource(g_hModule, MAKEINTRESOURCE(resourceId), RT_RCDATA);
     if (!hRes) return nullptr;
     
@@ -1789,6 +2064,9 @@ void* GUI::LoadTextureFromResource(int resourceId) {
     int width, height, channels;
     unsigned char* img_data = stbi_load_from_memory((const unsigned char*)pData, size, &width, &height, &channels, 4);
     if (!img_data) return nullptr;
+
+    if (outWidth) *outWidth = width;
+    if (outHeight) *outHeight = height;
     
     // Calculate average luminance of non-transparent pixels to detect if it's a dark icon
     float total_lum = 0.0f;
@@ -1866,20 +2144,18 @@ void* GUI::LoadTextureFromResource(int resourceId) {
 }
 
 bool GUI::InitializeTextures() {
-    g_tabTextures[0] = LoadTextureFromResource(IDR_COMBAT_ICON);
-    g_tabTextures[1] = LoadTextureFromResource(IDR_MOVEMENT_ICON);
-    g_tabTextures[2] = LoadTextureFromResource(IDR_VISUALS_ICON);
-    g_tabTextures[3] = LoadTextureFromResource(IDR_MISC_ICON);
-    g_tabTextures[4] = LoadTextureFromResource(IDR_TERMINAL_ICON);
-    g_tabTextures[5] = LoadTextureFromResource(IDR_INFO_ICON);
-    g_tabTextures[6] = LoadTextureFromResource(IDR_IRC_ICON);
-    g_tabTextures[7] = LoadTextureFromResource(IDR_CONFIG_MARKET_ICON);
+    g_tabTextures[0] = LoadTextureFromResource(IDR_VISUALS_ICON);
+    g_tabTextures[1] = LoadTextureFromResource(IDR_TERMINAL_ICON);
+    g_tabTextures[2] = LoadTextureFromResource(IDR_INFO_ICON);
+    g_tabTextures[3] = LoadTextureFromResource(IDR_IRC_ICON);
+    g_tabTextures[4] = LoadTextureFromResource(IDR_CONFIG_MARKET_ICON);
+    g_tabTextures[5] = LoadTextureFromResource(IDR_PROFILES_ICON);
     
     g_likeTexture = LoadTextureFromResource(IDR_LIKE_ICON);
     g_downloadTexture = LoadTextureFromResource(IDR_DOWNLOAD_ICON);
     
     bool success = false;
-    for (int i = 0; i < 8; i++) {
+    for (int i = 0; i < 6; i++) {
         if (g_tabTextures[i] != nullptr) {
             success = true;
         }
@@ -1888,7 +2164,7 @@ bool GUI::InitializeTextures() {
 }
 
 void GUI::ShutdownTextures() {
-    for (int i = 0; i < 8; i++) {
+    for (int i = 0; i < 6; i++) {
         if (g_tabTextures[i] != nullptr) {
             ((ID3D11ShaderResourceView*)g_tabTextures[i])->Release();
             g_tabTextures[i] = nullptr;
@@ -1902,6 +2178,198 @@ void GUI::ShutdownTextures() {
         ((ID3D11ShaderResourceView*)g_downloadTexture)->Release();
         g_downloadTexture = nullptr;
     }
+    for (auto& kv : g_moduleIcons) {
+        if (kv.second) {
+            ((ID3D11ShaderResourceView*)kv.second)->Release();
+        }
+    }
+    g_moduleIcons.clear();
+}
+
+void GUI::LoadModuleIcons() {
+    struct IconRes { const char* name; int id; };
+    IconRes icons[] = {
+        {"cpscounter", IDR_ICON_CPS}, {"fpscounter", IDR_ICON_FPS},
+        {"gear", IDR_ICON_GEAR}, {"keystrokes", IDR_ICON_KEYSTROKES},
+        {"renderinfo", IDR_ICON_RENDERINFO}, {"unlockfps", IDR_ICON_UNLOCKFPS},
+        {"watermark", IDR_ICON_WATERMARK}, {"arraylist", IDR_ICON_ARRAYLIST},
+        {"back", IDR_ICON_BACK}, {"logo", IDR_ICON_LOGO}, {"dashboard", IDR_ICON_DASHBOARD},
+        {"visuals", IDR_ICON_VISUALS}, {"misc", IDR_ICON_MISC},
+        {"motionblur", IDR_ICON_MOTIONBLUR}, {"autosprint", IDR_ICON_AUTOSPRINT},
+        {"edit", IDR_ICON_EDIT}, {"closeX", IDR_ICON_CLOSEX}, {"nohurtcam", IDR_ICON_NOHURTCAM},
+        {"delete", IDR_ICON_DELETE},
+        {"logo_pink", IDR_ICON_LOGO_PINK}, {"logo_cyan", IDR_ICON_LOGO_CYAN},
+        {"logo_green", IDR_ICON_LOGO_GREEN}, {"logo_blue", IDR_ICON_LOGO_BLUE}
+    };
+    for (auto& ic : icons) {
+        int w = 0, h = 0;
+        ID3D11ShaderResourceView* srv = (ID3D11ShaderResourceView*)LoadTextureFromResource(ic.id, &w, &h);
+        g_moduleIcons[ic.name] = (ImTextureID)srv;
+        g_moduleIconSizes[ic.name] = { w, h };
+    }
+}
+
+void GUI::RenderModuleCard(const char* name, const char* iconName, bool* enabled, bool* showSettings, void (*onToggle)(bool)) {
+    float windowWidth = ImGui::GetWindowWidth();
+    float spacing = 16.0f;
+    int columns = 3;
+    float cardWidth = (windowWidth - (spacing * (columns + 1))) / columns;
+    float cardHeight = 110.0f;
+    ImVec2 size(cardWidth, cardHeight);
+    float dt = ImGui::GetIO().DeltaTime;
+
+    // ── Card hover animation ──
+    std::string hoverKey = "card_hov_" + std::string(name);
+    if (g_elementAnims.find(hoverKey) == g_elementAnims.end()) g_elementAnims[hoverKey] = 0.0f;
+
+    // ── Card entrance animation (staggered fade-in) ──
+    std::string enterKey = "card_ent_" + std::string(name);
+    if (g_elementAnims.find(enterKey) == g_elementAnims.end()) g_elementAnims[enterKey] = 0.0f;
+    // Stagger delay: each card waits a bit longer based on its index
+    float staggerDelay = (float)g_cardStaggerIndex * 0.04f;
+    float adjustedApproach = Animations::Approach(g_elementAnims[enterKey], 1.0f, dt, 6.0f);
+    // Only start animating after the stagger delay has elapsed (tracked via a separate timer)
+    std::string staggerTimerKey = "card_stag_" + std::string(name);
+    if (g_elementAnims.find(staggerTimerKey) == g_elementAnims.end()) g_elementAnims[staggerTimerKey] = 0.0f;
+    g_elementAnims[staggerTimerKey] += dt;
+    if (g_elementAnims[staggerTimerKey] > staggerDelay) {
+        g_elementAnims[enterKey] = adjustedApproach;
+    }
+    float entranceAnim = Animations::EaseOutQuart(Animations::Clamp01(g_elementAnims[enterKey]));
+
+    // Fade from bottom
+    float cardAlpha = entranceAnim;
+
+    ImGui::PushStyleColor(ImGuiCol_ChildBg, ImVec4(0.08f, 0.08f, 0.10f, 0.75f * cardAlpha));
+    ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 10.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+
+    std::string childId = std::string("##Card_") + name;
+    ImGui::BeginChild(childId.c_str(), size, true, ImGuiWindowFlags_NoScrollbar);
+
+    ImDrawList* drawList = ImGui::GetWindowDrawList();
+    ImVec2 cardPos = ImGui::GetCursorScreenPos();
+    ImVec4 accV = g_colorAccent;
+
+    // Track hover state for this card (use window hover, not a blocking invisible button)
+    bool cardHovered = ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows);
+    float hTarget = cardHovered ? 1.0f : 0.0f;
+    g_elementAnims[hoverKey] = Animations::Approach(g_elementAnims[hoverKey], hTarget, dt, 14.0f);
+    float hAnim = g_elementAnims[hoverKey];
+
+    // Hover glow border
+    if (hAnim > 0.01f) {
+        drawList->AddRect(
+            ImVec2(cardPos.x - 1, cardPos.y - 1),
+            ImVec2(cardPos.x + cardWidth + 1, cardPos.y + cardHeight + 1),
+            ImColor(accV.x, accV.y, accV.z, hAnim * 0.45f), 10.0f, 0, 1.5f);
+        // Soft glow behind card on hover
+        drawList->AddRectFilled(
+            ImVec2(cardPos.x - 3, cardPos.y - 3),
+            ImVec2(cardPos.x + cardWidth + 3, cardPos.y + cardHeight + 3),
+            ImColor(accV.x, accV.y, accV.z, hAnim * 0.06f), 12.0f);
+    }
+
+    // Subtle enabled accent left border
+    if (*enabled && entranceAnim > 0.5f) {
+        float enabledPulse = (sinf((float)ImGui::GetTime() * 1.5f) * 0.5f + 0.5f);
+        drawList->AddRectFilled(
+            ImVec2(cardPos.x, cardPos.y + 6),
+            ImVec2(cardPos.x + 3, cardPos.y + cardHeight - 6),
+            ImColor(accV.x, accV.y, accV.z, 0.5f + enabledPulse * 0.3f), 2.0f);
+    }
+
+    // Animation for toggle switch
+    std::string tglKey = "tgl_" + std::string(name);
+    if (g_elementAnims.find(tglKey) == g_elementAnims.end()) g_elementAnims[tglKey] = *enabled ? 1.0f : 0.0f;
+    float tglTarget = *enabled ? 1.0f : 0.0f;
+    g_elementAnims[tglKey] = Animations::Approach(g_elementAnims[tglKey], tglTarget, dt, 12.0f);
+    float tglAnim = g_elementAnims[tglKey];
+
+    // Module icon (left side, centered vertically) with entrance offset
+    ImTextureID iconTexture = (iconName && g_moduleIcons.count(iconName)) ? g_moduleIcons[iconName] : (ImTextureID)0;
+    if (iconTexture) {
+        float iconSz = 42.0f;
+        float iconIconAnim = Animations::EaseOutBack(Animations::Clamp01(g_elementAnims[enterKey] * 1.2f - 0.2f));
+        float iconScale = 0.7f + iconIconAnim * 0.3f;
+        float scaledSz = iconSz * iconScale;
+        float iconCX = cardPos.x + 18.0f + iconSz * 0.5f;
+        float iconCY = cardPos.y + cardHeight * 0.5f;
+        drawList->AddImage(iconTexture,
+            ImVec2(iconCX - scaledSz * 0.5f, iconCY - scaledSz * 0.5f),
+            ImVec2(iconCX + scaledSz * 0.5f, iconCY + scaledSz * 0.5f),
+            ImVec2(0,0), ImVec2(1,1), IM_COL32_WHITE);
+    }
+
+    // Module name (center-left) with fade-in
+    float textX = cardPos.x + 70.0f;
+    float textY = cardPos.y + (cardHeight - ImGui::GetFontSize()) * 0.4f;
+    drawList->AddText(ImVec2(textX, textY), ImColor(220, 220, 228, (int)(240 * cardAlpha)), name);
+
+    // Right side: gear icon + toggle switch (side by side)
+    float tglW = 48.0f;
+    float tglH = 26.0f;
+    float gearSz = 24.0f;
+    float rightGap = 12.0f;
+    float gearX = cardPos.x + cardWidth - tglW - gearSz - rightGap - 8.0f;
+    float gearY = cardPos.y + (cardHeight - gearSz) * 0.5f;
+    float tglX = cardPos.x + cardWidth - tglW - 8.0f;
+    float tglY = cardPos.y + (cardHeight - tglH) * 0.5f;
+    float tglR = tglH * 0.5f;
+
+    // Gear icon with hover spin animation
+    std::string gearSpinKey = "gear_spin_" + std::string(name);
+    if (g_elementAnims.find(gearSpinKey) == g_elementAnims.end()) g_elementAnims[gearSpinKey] = 0.0f;
+    ImTextureID gearIcon = g_moduleIcons.count("gear") ? g_moduleIcons["gear"] : (ImTextureID)0;
+    ImVec2 gearMin(gearX, gearY);
+    ImVec2 gearMax(gearX + gearSz, gearY + gearSz);
+    bool gearHovered = ImGui::IsMouseHoveringRect(gearMin, gearMax);
+    // Spin gear when hovered
+    float gearTargetSpin = gearHovered ? 1.0f : 0.0f;
+    g_elementAnims[gearSpinKey] += (gearTargetSpin - g_elementAnims[gearSpinKey]) * (1.0f - std::expf(-8.0f * dt));
+    float gearSpin = g_elementAnims[gearSpinKey];
+    if (gearIcon) {
+        float gearCX = gearX + gearSz * 0.5f;
+        float gearCY = gearY + gearSz * 0.5f;
+        float gearR = gearSz * 0.5f * (1.0f + gearSpin * 0.08f); // subtle scale on hover
+        ImU32 gearCol = ImColor(0.85f + gearSpin * 0.15f, 0.85f + gearSpin * 0.15f, 0.88f + gearSpin * 0.12f, 0.55f + gearSpin * 0.45f);
+        drawList->AddImage(gearIcon,
+            ImVec2(gearCX - gearR, gearCY - gearR),
+            ImVec2(gearCX + gearR, gearCY + gearR),
+            ImVec2(0,0), ImVec2(1,1), gearCol);
+    }
+    // Click gear to open settings
+    ImGui::SetCursorPos(ImVec2(gearX - cardPos.x, gearY - cardPos.y));
+    if (ImGui::InvisibleButton((std::string("##Gear_") + name).c_str(), ImVec2(gearSz, gearSz))) {
+        g_currentSettingsModule = iconName ? iconName : name;
+    }
+
+    // Toggle switch with smooth spring animation
+    ImVec4 tglBgEmpty = ImVec4(0.18f, 0.18f, 0.22f, 1.0f);
+    ImVec4 tglBgFull = ImVec4(accV.x, accV.y, accV.z, 1.0f);
+    ImU32 tglBg = ImColor(
+        tglBgEmpty.x + (tglBgFull.x - tglBgEmpty.x) * tglAnim,
+        tglBgEmpty.y + (tglBgFull.y - tglBgEmpty.y) * tglAnim,
+        tglBgEmpty.z + (tglBgFull.z - tglBgEmpty.z) * tglAnim, 1.0f);
+    drawList->AddRectFilled(ImVec2(tglX, tglY), ImVec2(tglX + tglW, tglY + tglH), tglBg, tglR);
+    float knobR = tglR - 3.0f + tglAnim * 1.0f; // knob grows slightly when active
+    float knobX = tglX + tglR + tglAnim * (tglW - tglR * 2.0f);
+    drawList->AddCircleFilled(ImVec2(knobX, tglY + tglR), knobR, IM_COL32_WHITE);
+    if (tglAnim > 0.01f) {
+        drawList->AddRectFilled(
+            ImVec2(tglX - 2, tglY - 2), ImVec2(tglX + tglW + 2, tglY + tglH + 2),
+            ImColor(accV.x, accV.y, accV.z, tglAnim * 0.15f), tglR + 2.0f);
+    }
+    // Click toggle to enable/disable
+    ImGui::SetCursorPos(ImVec2(tglX - cardPos.x, tglY - cardPos.y));
+    if (ImGui::InvisibleButton((std::string("##Tgl_") + name).c_str(), ImVec2(tglW, tglH))) {
+        *enabled = !(*enabled);
+        if (onToggle) onToggle(*enabled);
+    }
+
+    ImGui::EndChild();
+    ImGui::PopStyleVar(2);
+    ImGui::PopStyleColor();
 }
 
 void GUI::FetchMarketConfigs() {
@@ -2496,4 +2964,293 @@ void GUI::RenderConfigMarket() {
     if (nextDisabled) ImGui::EndDisabled();
 
     ImGui::PopStyleVar();
+}
+
+// ---------------------------------------------------------------------------
+//  Profiles Tab
+// ---------------------------------------------------------------------------
+void GUI::RenderProfiles() {
+    float dt    = ImGui::GetIO().DeltaTime;
+    ImVec4 accV = g_colorAccent;
+
+    static char s_newName[64]      = "";
+    static char s_renameTarget[64] = "";
+    static char s_renameBuf[64]    = "";
+    static bool s_renaming         = false;
+    static bool s_confirmDelete    = false;
+    static char s_deleteTarget[64] = "";
+
+    ImTextureID icEdit   = g_moduleIcons.count("edit")   ? g_moduleIcons["edit"]   : (ImTextureID)0;
+    ImTextureID icDelete = g_moduleIcons.count("delete") ? g_moduleIcons["delete"] : (ImTextureID)0;
+
+    float avail = ImGui::GetContentRegionAvail().x;
+
+    // Header
+    ImGui::PushFont(g_fontH2 ? g_fontH2 : ImGui::GetFont());
+    ImGui::TextColored(accV, "Profiles");
+    ImGui::PopFont();
+    ImGui::TextDisabled("Select, create or manage your configs.");
+    ImGui::Spacing();
+
+    // Active badge
+    {
+        const std::string& cur = ConfigManager::GetCurrentConfig();
+        ImGui::TextDisabled("Active:");
+        ImGui::SameLine(0, 6);
+        ImGui::TextColored(accV, "%s", cur.empty() ? "(none)" : cur.c_str());
+    }
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::Spacing();
+
+    // Create new config
+    {
+        const float createBtnW = 88.0f;
+        const float inputW     = avail - createBtnW - 8.0f;
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 6.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,  ImVec2(10, 7));
+        ImGui::PushStyleColor(ImGuiCol_FrameBg, ImVec4(0.08f, 0.08f, 0.12f, 0.9f));
+        ImGui::SetNextItemWidth(inputW);
+        bool enter = ImGui::InputTextWithHint("##newcfg", "  New config name...",
+            s_newName, sizeof(s_newName), ImGuiInputTextFlags_EnterReturnsTrue);
+        ImGui::PopStyleColor();
+        ImGui::PopStyleVar(2);
+        ImGui::SameLine(0, 8);
+        ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 6.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,  ImVec2(8, 7));
+        ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(accV.x, accV.y, accV.z, 0.9f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(accV.x * 1.1f, accV.y * 1.1f, accV.z * 1.1f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ImVec4(accV.x * 0.8f, accV.y * 0.8f, accV.z * 0.8f, 1.0f));
+        bool create = ImGui::Button("+ Create", ImVec2(createBtnW, 0));
+        ImGui::PopStyleColor(3);
+        ImGui::PopStyleVar(2);
+        if ((create || enter) && s_newName[0] != '\0') {
+            if (ConfigManager::SaveConfig(s_newName)) {
+                ConfigManager::SetCurrentConfig(s_newName);
+                strcpy_s(g_notifTitle,    "Profiles");
+                sprintf_s(g_notifMessage, "Created '%s'", s_newName);
+                g_notifStart = GetTickCount64();
+                s_newName[0] = '\0';
+            }
+        }
+    }
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::Spacing();
+
+    // Config list
+    auto configs = ConfigManager::ListConfigs();
+    if (configs.empty()) { ImGui::TextDisabled("No configs found."); return; }
+
+    const float rowH     = 46.0f;
+    const float iconSz   = 16.0f;
+    const float pad      = 4.0f;
+    const float iconBtnW = iconSz + pad * 2.0f;
+    const float loadBtnW = 58.0f;
+    const float btnH     = 28.0f;
+    const float gap      = 5.0f;
+    const float btnGroupW = iconBtnW + gap + iconBtnW + gap + loadBtnW + 10.0f;
+
+    for (int i = 0; i < (int)configs.size(); i++) {
+        const std::string& cfg = configs[i];
+        bool isActive = (cfg == ConfigManager::GetCurrentConfig());
+
+        std::string entKey = "prf_ent_" + std::to_string(i);
+        if (g_elementAnims.find(entKey) == g_elementAnims.end()) g_elementAnims[entKey] = 0.0f;
+        g_elementAnims[entKey] = Animations::Approach(g_elementAnims[entKey], 1.0f, dt, 8.0f);
+        float ea = Animations::EaseOutQuart(Animations::Clamp01(g_elementAnims[entKey]));
+
+        std::string hovKey = "prf_hov_" + std::to_string(i);
+        if (g_elementAnims.find(hovKey) == g_elementAnims.end()) g_elementAnims[hovKey] = 0.0f;
+        float hov = g_elementAnims[hovKey];
+
+        ImGui::PushID(i);
+
+        ImVec4 cardBg = isActive
+            ? ImVec4(accV.x * 0.25f, accV.y * 0.06f, accV.z * 0.06f, (0.80f + hov * 0.10f) * ea)
+            : ImVec4(0.09f, 0.09f, 0.12f, (0.65f + hov * 0.15f) * ea);
+
+        ImGui::PushStyleColor(ImGuiCol_ChildBg, cardBg);
+        ImGui::PushStyleVar(ImGuiStyleVar_ChildRounding, 8.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+
+        std::string childId = "##prow" + std::to_string(i);
+        bool vis = ImGui::BeginChild(childId.c_str(), ImVec2(avail, rowH),
+            false, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+
+        if (vis) {
+            ImDrawList* dl = ImGui::GetWindowDrawList();
+            ImVec2 wPos    = ImGui::GetWindowPos();
+            ImVec2 wSz     = ImGui::GetWindowSize();
+
+            // Update hover
+            bool wHov = ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows);
+            g_elementAnims[hovKey] = Animations::Approach(g_elementAnims[hovKey], wHov ? 1.0f : 0.0f, dt, 12.0f);
+
+            // Active accent bar
+            if (isActive)
+                dl->AddRectFilled(wPos, ImVec2(wPos.x + 3.0f, wPos.y + rowH),
+                    ImColor(accV.x, accV.y, accV.z, 0.9f * ea), 2.0f);
+
+            // Clickable name area (left side only, not overlapping buttons)
+            float nameAreaW = wSz.x - btnGroupW;
+            ImGui::SetCursorPos(ImVec2(0, 0));
+            ImGui::InvisibleButton("##nameClick", ImVec2(nameAreaW, rowH));
+            if (ImGui::IsItemClicked() && !isActive) {
+                ConfigManager::LoadConfig(cfg);
+                strcpy_s(g_notifTitle,    "Profiles");
+                sprintf_s(g_notifMessage, "Loaded '%s'", cfg.c_str());
+                g_notifStart = GetTickCount64();
+            }
+            if (ImGui::IsItemHovered() && !isActive) ImGui::SetTooltip("Click to load");
+
+            // Config name text
+            float textY = (rowH - ImGui::GetFontSize()) * 0.5f;
+            ImU32 nameCol = isActive
+                ? ImColor(accV.x, accV.y, accV.z, ea)
+                : ImColor(0.88f, 0.88f, 0.92f, ea);
+            dl->AddText(ImVec2(wPos.x + (isActive ? 16.0f : 14.0f), wPos.y + textY), nameCol, cfg.c_str());
+
+            // Buttons — right side, vertically centred
+            float btnY  = (rowH - btnH) * 0.5f;
+            float bstX  = nameAreaW + 5.0f;
+
+            ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 5.0f);
+            ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,  ImVec2(pad, pad));
+
+            // Rename
+            ImGui::SetCursorPos(ImVec2(bstX, btnY));
+            ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.15f, 0.15f, 0.22f, 0.9f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(accV.x, accV.y, accV.z, 0.45f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ImVec4(accV.x, accV.y, accV.z, 0.70f));
+            bool renClicked = icEdit
+                ? ImGui::ImageButton("##ren", icEdit, ImVec2(iconSz, iconSz))
+                : ImGui::Button("~##ren", ImVec2(iconBtnW, btnH));
+            ImGui::PopStyleColor(3);
+            if (renClicked) { s_renaming = true; strcpy_s(s_renameTarget, cfg.c_str()); strcpy_s(s_renameBuf, cfg.c_str()); }
+            if (ImGui::IsItemHovered()) ImGui::SetTooltip("Rename");
+
+            // Delete
+            ImGui::SameLine(0, gap);
+            ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.55f, 0.10f, 0.10f, 0.7f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.85f, 0.12f, 0.12f, 0.9f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ImVec4(1.00f, 0.15f, 0.15f, 1.0f));
+            bool delClicked = icDelete
+                ? ImGui::ImageButton("##del", icDelete, ImVec2(iconSz, iconSz))
+                : ImGui::Button("X##del", ImVec2(iconBtnW, btnH));
+            ImGui::PopStyleColor(3);
+            if (delClicked) { s_confirmDelete = true; strcpy_s(s_deleteTarget, cfg.c_str()); }
+            if (ImGui::IsItemHovered()) ImGui::SetTooltip("Delete");
+
+            ImGui::PopStyleVar(2);
+
+            // Load / Active
+            ImGui::SameLine(0, gap);
+            ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 5.0f);
+            ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,  ImVec2(8, 5));
+            if (isActive) {
+                ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(accV.x * 0.3f, accV.y * 0.08f, accV.z * 0.08f, 0.7f));
+                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(accV.x * 0.3f, accV.y * 0.08f, accV.z * 0.08f, 0.7f));
+                ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ImVec4(accV.x * 0.3f, accV.y * 0.08f, accV.z * 0.08f, 0.7f));
+                ImGui::PushStyleColor(ImGuiCol_Text,          ImVec4(accV.x, accV.y, accV.z, 0.85f));
+                ImGui::BeginDisabled(true);
+                ImGui::Button("Active", ImVec2(loadBtnW, btnH));
+                ImGui::EndDisabled();
+                ImGui::PopStyleColor(4);
+            } else {
+                ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(accV.x, accV.y, accV.z, 0.80f));
+                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(accV.x * 1.1f, accV.y * 1.1f, accV.z * 1.1f, 1.0f));
+                ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ImVec4(accV.x * 0.8f, accV.y * 0.8f, accV.z * 0.8f, 1.0f));
+                if (ImGui::Button("Load", ImVec2(loadBtnW, btnH))) {
+                    ConfigManager::LoadConfig(cfg);
+                    strcpy_s(g_notifTitle,    "Profiles");
+                    sprintf_s(g_notifMessage, "Loaded '%s'", cfg.c_str());
+                    g_notifStart = GetTickCount64();
+                }
+                ImGui::PopStyleColor(3);
+            }
+            ImGui::PopStyleVar(2);
+        }
+        ImGui::EndChild();
+        ImGui::PopStyleVar(2);
+        ImGui::PopStyleColor();
+        ImGui::PopID();
+        ImGui::Spacing();
+    }
+
+    // Rename modal
+    if (s_renaming) {
+        ImGui::SetNextWindowSize(ImVec2(330, 125), ImGuiCond_Always);
+        ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x * 0.5f, ImGui::GetIO().DisplaySize.y * 0.5f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 10.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12.0f, 12.0f));
+        ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.10f, 0.10f, 0.14f, 0.97f));
+        if (ImGui::Begin("##RenameModal2", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar)) {
+            ImGui::Spacing();
+            ImGui::TextColored(accV, "Rename Profile");
+            ImGui::TextDisabled("Renaming: %s", s_renameTarget);
+            ImGui::Spacing();
+            ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 5.0f);
+            ImGui::SetNextItemWidth(-1);
+            bool confirm = ImGui::InputText("##renInput2", s_renameBuf, sizeof(s_renameBuf), ImGuiInputTextFlags_EnterReturnsTrue);
+            ImGui::PopStyleVar();
+            ImGui::Spacing();
+            ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 5.0f);
+            ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(accV.x, accV.y, accV.z, 0.85f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(accV.x * 1.1f, accV.y * 1.1f, accV.z * 1.1f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ImVec4(accV.x * 0.8f, accV.y * 0.8f, accV.z * 0.8f, 1.0f));
+            if (ImGui::Button("Rename", ImVec2(90, 0)) || confirm) {
+                if (s_renameBuf[0] != '\0' && std::string(s_renameBuf) != s_renameTarget) {
+                    std::string oldN = s_renameTarget, newN = s_renameBuf;
+                    if (ConfigManager::SaveConfig(newN)) {
+                        if (ConfigManager::GetCurrentConfig() == oldN) ConfigManager::SetCurrentConfig(newN);
+                        ConfigManager::DeleteConfig(oldN);
+                        strcpy_s(g_notifTitle,    "Profiles");
+                        sprintf_s(g_notifMessage, "Renamed to '%s'", newN.c_str());
+                        g_notifStart = GetTickCount64();
+                    }
+                }
+                s_renaming = false;
+            }
+            ImGui::PopStyleColor(3); ImGui::PopStyleVar();
+            ImGui::SameLine(0, 8);
+            if (ImGui::Button("Cancel##ren", ImVec2(70, 0))) s_renaming = false;
+        }
+        ImGui::End();
+        ImGui::PopStyleColor();
+        ImGui::PopStyleVar(2);
+    }
+
+    // Delete confirm modal
+    if (s_confirmDelete) {
+        ImGui::SetNextWindowSize(ImVec2(300, 115), ImGuiCond_Always);
+        ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x * 0.5f, ImGui::GetIO().DisplaySize.y * 0.5f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 10.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(12.0f, 12.0f));
+        ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.10f, 0.10f, 0.14f, 0.97f));
+        if (ImGui::Begin("##DeleteModal2", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoScrollbar)) {
+            ImGui::Spacing();
+            ImGui::TextColored(ImVec4(1.0f, 0.30f, 0.30f, 1.0f), "Delete Profile?");
+            ImGui::TextDisabled("'%s' will be permanently deleted.", s_deleteTarget);
+            ImGui::Spacing();
+            ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 5.0f);
+            ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.75f, 0.12f, 0.12f, 0.85f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(1.00f, 0.15f, 0.15f, 1.00f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ImVec4(0.55f, 0.08f, 0.08f, 1.00f));
+            if (ImGui::Button("Delete##del2", ImVec2(82, 0))) {
+                ConfigManager::DeleteConfig(s_deleteTarget);
+                if (ConfigManager::GetCurrentConfig() == s_deleteTarget) ConfigManager::SetCurrentConfig("");
+                strcpy_s(g_notifTitle,    "Profiles");
+                sprintf_s(g_notifMessage, "Deleted '%s'", s_deleteTarget);
+                g_notifStart = GetTickCount64();
+                s_confirmDelete = false;
+            }
+            ImGui::PopStyleColor(3); ImGui::PopStyleVar();
+            ImGui::SameLine(0, 8);
+            if (ImGui::Button("Cancel##del", ImVec2(70, 0))) s_confirmDelete = false;
+        }
+        ImGui::End();
+        ImGui::PopStyleColor();
+        ImGui::PopStyleVar(2);
+    }
 }

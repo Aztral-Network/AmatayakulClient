@@ -50,6 +50,9 @@ namespace ImGuiDX11 {
             // Texture/Resource Initialization (Must be on render thread)
             Watermark::InitializeTextures();
             GUI::InitializeTextures();
+            GUI::LoadModuleIcons();
+            // Apply theme after icons loaded so themed logo is available
+            GUI::ApplyThemePreset(GUI::g_currentTheme);
             ClickGUI::InitializeBlurShaders(pDevice);
 
             // Centralized Module Initialization
@@ -61,7 +64,6 @@ namespace ImGuiDX11 {
             Watermark::g_watermarkEnableTime = GetTickCount64();
             Watermark::g_watermarkAnim = 1.0f;
 
-            g_notifStart = GetTickCount64();
             g_lastTime = GetTickCount64();
 
             // Startup splash: plays right after assets/offsets are loaded

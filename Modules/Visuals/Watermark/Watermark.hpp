@@ -16,7 +16,7 @@ struct ImVec2;
 struct ImVec4;
 struct HudElement;
 
-/// @brief Watermark module - Displays "Azyre" branding with chroma effect
+/// @brief Watermark module - Displays "Amatayakul" branding with chroma effect
 class Watermark {
 public:
     // Static member variables

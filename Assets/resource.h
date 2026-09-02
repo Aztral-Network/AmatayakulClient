@@ -18,6 +18,8 @@
 #define IDR_LIKE_ICON 116
 #define IDR_DOWNLOAD_ICON 117
 #define IDR_CONFIG_MARKET_ICON 118
+#define IDR_SPLASH_BG 300
+#define IDR_SPLASH_LOGO 301
 #define IDR_BLUR_PIXEL_SHADER 120
 #define IDR_BLUR_VERTEX_SHADER 121
 #define IDR_FONT_GOOGLE_SANS 122
@@ -28,6 +30,34 @@
 #define IDR_FONT_POPPINS 127
 #define IDR_FONT_PLAYFAIR 128
 #define IDR_TITLE_ORIGINAL 129
+
+// Module card icons (LEGACY-style)
+#define IDR_ICON_CPS          201
+#define IDR_ICON_FPS          202
+#define IDR_ICON_GEAR         203
+#define IDR_ICON_KEYSTROKES   204
+#define IDR_ICON_RENDERINFO   205
+#define IDR_ICON_UNLOCKFPS    206
+#define IDR_ICON_WATERMARK    207
+#define IDR_ICON_ARRAYLIST    208
+#define IDR_ICON_BACK         209
+#define IDR_ICON_LOGO         210
+#define IDR_ICON_DASHBOARD    211
+#define IDR_ICON_VISUALS      212
+#define IDR_ICON_MISC         213
+#define IDR_ICON_LOGO_PINK    214
+#define IDR_ICON_LOGO_CYAN    215
+#define IDR_ICON_LOGO_GREEN   216
+#define IDR_ICON_LOGO_BLUE    217
+#define IDR_ICON_MOTIONBLUR   218
+#define IDR_ICON_AUTOSPRINT   219
+#define IDR_ICON_EDIT         220
+#define IDR_ICON_CLOSEX       221
+#define IDR_ICON_DISCORD      222
+#define IDR_ICON_GITHUB       223
+#define IDR_ICON_NOHURTCAM    224
+#define IDR_ICON_DELETE       225
+#define IDR_PROFILES_ICON     226
 
 
 

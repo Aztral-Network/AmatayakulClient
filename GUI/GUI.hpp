@@ -33,6 +33,11 @@ public:
     static ULONGLONG g_tabChangeTime;
     static float g_tabAnim;
     static float g_ircShiftAnim;
+
+    // Module filter (Mods tab)
+    enum ModFilter { Filter_All, Filter_Visual, Filter_Misc };
+    static ModFilter g_currentFilter;
+    static char g_searchBuffer[128];
     
     // Animation states for UI elements
     static std::map<std::string, float> g_elementAnims;
@@ -41,6 +46,7 @@ public:
     
     // Theme configurations
     enum ThemePreset {
+        Theme_AmatayakulRed,
         Theme_AegleClassic,
         Theme_SakuraBlossom,
         Theme_Cyberpunk,
@@ -55,6 +61,15 @@ public:
     static ImVec4 g_colorAccent;
     static ImVec4 g_colorAccentSoft;
     static ImVec4 g_colorAccentGlow;
+    // Gradient colors per theme
+    static ImVec4 g_gradientColor1; // top-left
+    static ImVec4 g_gradientColor2; // top-right
+    static ImVec4 g_gradientColor3; // bottom-left
+    static ImVec4 g_gradientColor4; // bottom-right
+    // Themed logo texture
+    static ImTextureID g_logoTexture;
+    static int g_logoWidth;
+    static int g_logoHeight;
     
     // Fonts
     static ImFont* g_fontDefault;
@@ -74,12 +89,20 @@ public:
 
 
     // Tab textures
-    static void* g_tabTextures[8];
+    static void* g_tabTextures[6];
     static void* g_likeTexture;
     static void* g_downloadTexture;
     static bool InitializeTextures();
     static void ShutdownTextures();
-    static void* LoadTextureFromResource(int resourceId);
+    static void* LoadTextureFromResource(int resourceId, int* outWidth = nullptr, int* outHeight = nullptr);
+
+    // Module card icons (LEGACY-style)
+    static std::map<std::string, ImTextureID> g_moduleIcons;
+    static std::map<std::string, std::pair<int,int>> g_moduleIconSizes;
+    static void LoadModuleIcons();
+
+    // Profiles tab
+    static void RenderProfiles();
 
     // Config Market
     struct MarketConfig {
@@ -115,6 +138,8 @@ public:
     static std::vector<Particle> g_particles;
     static void InitializeParticles();
     static void RenderParticles(ImDrawList* draw, ImVec2 pos, ImVec2 size, float alpha);
+    static void RenderAnimatedGradient(ImDrawList* draw, ImVec2 pos, ImVec2 size, float alpha);
+    static const char* GetThemeLogoName();
     
     // Style and theme
     static void ApplyTheme();
@@ -147,6 +172,11 @@ public:
     static bool BeginSection(const char* label, bool* open);
     static void EndSection();
     
+    // Module card (LEGACY-style: icon + name + OPTIONS + toggle)
+    static std::string g_currentSettingsModule;
+    static int g_cardStaggerIndex; // for staggered entrance animation
+    static void RenderModuleCard(const char* name, const char* iconName, bool* enabled, bool* showSettings = nullptr, void (*onToggle)(bool newEnabled) = nullptr);
+    
     // Cascading Modules
     static bool BeginModuleSettings(const char* label, bool* open);
     static void EndModuleSettings();
@@ -161,6 +191,7 @@ public:
     // Custom widgets (replace default ImGui look)
     static bool RenderSlider(const char* label, float* value, float min, float max, const char* format = "%.2f");
     static bool RenderSliderInt(const char* label, int* value, int min, int max, const char* format = "%d");
+    static bool RenderKeybind(const char* label, int* key);
     static bool RenderCombo(const char* label, int* current_item, const char* const* items, int items_count);
     static bool RenderCheckbox(const char* label, bool* value);
     static bool RenderButton(const char* label, const ImVec2& size = ImVec2(0, 0));

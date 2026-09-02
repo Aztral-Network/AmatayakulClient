@@ -373,7 +373,7 @@ void Input::UpdateMouse(HWND window, float screenWidth, float screenHeight, bool
     POINT p;
     GetCursorPos(&p);
     ScreenToClient(window, &p);
-    io.MousePos = ImVec2((float)p.x, (float)p.y);
+    io.AddMousePosEvent(static_cast<float>(p.x), static_cast<float>(p.y));
 
     // Mouse buttons - direct clean read
     g_prevLmbPressed = g_lmbPressed;
@@ -382,9 +382,9 @@ void Input::UpdateMouse(HWND window, float screenWidth, float screenHeight, bool
     g_lmbPressed = (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
     g_rmbPressed = (GetAsyncKeyState(VK_RBUTTON) & 0x8000) != 0;
     
-    io.MouseDown[0] = g_lmbPressed;
-    io.MouseDown[1] = g_rmbPressed;
-    io.MouseDown[2] = (GetAsyncKeyState(VK_MBUTTON) & 0x8000) != 0;
+    io.AddMouseButtonEvent(0, g_lmbPressed);
+    io.AddMouseButtonEvent(1, g_rmbPressed);
+    io.AddMouseButtonEvent(2, (GetAsyncKeyState(VK_MBUTTON) & 0x8000) != 0);
 
     // ImGui cursor ONLY drawn when menu open
     io.MouseDrawCursor = drawCursor;
@@ -563,11 +563,8 @@ void Input::DebugLogCursorState(const char* tag) {
 }
 
 LRESULT CALLBACK Input::WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
-    // Feed every message to the backend exactly like the original dllmain did.
-    // The WH_KEYBOARD_LL hook is an additional capture layer, not a replacement:
-    // if it is silent, WM_CHAR/WM_KEYDOWN still reach ImGui through this handler.
-    if (ImGui_ImplWin32_WndProcHandler(hWnd, uMsg, wParam, lParam))
-        return true;
+    // Feed the event to ImGui
+    ImGui_ImplWin32_WndProcHandler(hWnd, uMsg, wParam, lParam);
 
     if (uMsg == WM_CHAR && wParam >= 32 && wParam != 127 && wParam < 0x10000) {
         // The game delivers printable text characters through the message queue,
@@ -583,11 +580,29 @@ LRESULT CALLBACK Input::WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lPar
     }
 
     if (g_showMenu) {
+        ImGuiIO& io = ImGui::GetIO();
+        bool isMouseEvent = false;
         switch (uMsg) {
             case WM_MOUSEMOVE: case WM_LBUTTONDOWN: case WM_LBUTTONUP:
             case WM_RBUTTONDOWN: case WM_RBUTTONUP: case WM_MBUTTONDOWN:
-            case WM_MBUTTONUP: case WM_MOUSEWHEEL: case WM_INPUT: 
-                return 1;
+            case WM_MBUTTONUP: case WM_MOUSEWHEEL: case WM_INPUT:
+            case WM_LBUTTONDBLCLK: case WM_RBUTTONDBLCLK: case WM_MBUTTONDBLCLK:
+            case WM_MOUSEHWHEEL: case WM_XBUTTONDOWN: case WM_XBUTTONUP: case WM_XBUTTONDBLCLK:
+            case WM_POINTERDOWN: case WM_POINTERUP: case WM_POINTERUPDATE:
+            case WM_POINTERWHEEL: case WM_POINTERHWHEEL:
+                isMouseEvent = true;
+                break;
+        }
+
+        bool isKeyboardEvent = false;
+        switch (uMsg) {
+            case WM_KEYDOWN: case WM_KEYUP: case WM_SYSKEYDOWN: case WM_SYSKEYUP: case WM_CHAR:
+                isKeyboardEvent = true;
+                break;
+        }
+
+        if ((isMouseEvent && io.WantCaptureMouse) || (isKeyboardEvent && io.WantCaptureKeyboard)) {
+            return 1;
         }
     }
     return CallWindowProc(oWndProc, hWnd, uMsg, wParam, lParam);

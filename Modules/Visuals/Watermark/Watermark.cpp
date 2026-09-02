@@ -28,9 +28,9 @@ ULONGLONG Watermark::g_watermarkDisableTime = 0;
 float Watermark::g_watermarkAnim = 1.0f;
 HudElement* Watermark::g_watermarkHud = nullptr;
 
-bool Watermark::g_useImage = false;
+bool Watermark::g_useImage = true;
 std::string Watermark::g_fontName = "Default";
-char Watermark::g_customText[128] = "Azyre";
+char Watermark::g_customText[128] = "Amatayakul";
 bool Watermark::g_showGlow = true;
 bool Watermark::g_chromaText = true;
 ImVec4 Watermark::g_staticColor = ImVec4(1.0f, 0.4f, 0.8f, 1.0f);
@@ -147,7 +147,7 @@ void Watermark::Initialize(HudElement* hud) {
 bool Watermark::InitializeTextures() {
     if (g_watermarkTexture) return true;
     
-    HRSRC hRes = FindResource(g_hModule, MAKEINTRESOURCE(IDR_WATERMARK_IMAGE), RT_RCDATA);
+    HRSRC hRes = FindResource(g_hModule, MAKEINTRESOURCE(IDR_ICON_LOGO), RT_RCDATA);
     if (!hRes) return false;
     
     HGLOBAL hGlobal = LoadResource(g_hModule, hRes);
@@ -265,17 +265,18 @@ void Watermark::RenderDisplay() {
 
         if (g_useImage && g_watermarkTexture) {
             float aspect = (float)g_texWidth / (float)g_texHeight;
-            float h = g_imageSize;
+            float h = g_imageSize * g_watermarkHud->scale;
             float w = h * aspect;
             
-            draw->AddImage((ImTextureID)g_watermarkTexture, pos, ImVec2(pos.x + w, pos.y + h), ImVec2(0,0), ImVec2(1,1), ImColor(1.0f, 1.0f, 1.0f, easedAnim * g_imageOpacity));
+            const ImVec4& accent = GUI::g_colorAccent;
+            draw->AddImage((ImTextureID)g_watermarkTexture, pos, ImVec2(pos.x + w, pos.y + h), ImVec2(0,0), ImVec2(1,1), ImColor(accent.x, accent.y, accent.z, easedAnim * g_imageOpacity));
             g_watermarkHud->size = ImVec2(w + 10, h + 10);
         } else {
             ImVec4 col = g_staticColor;
             col.w = easedAnim;
             
             ImFont* font = GUI::GetFontByName(g_fontName);
-            float size = g_fontSize;
+            float size = g_fontSize * g_watermarkHud->scale;
             float renderSize = size * popScale;
             
             if (g_showBackground) {
@@ -351,7 +352,7 @@ void Watermark::RenderDisplay() {
         }
 
         if (GUI::IsHudEditable()) {
-            draw->AddRect(g_watermarkHud->pos, ImVec2(pos.x + g_watermarkHud->size.x, pos.y + g_watermarkHud->size.y), IM_COL32(255, 255, 255, 80));
+            g_watermarkHud->RenderHudEditor(draw);
         }
     }
 }
@@ -448,7 +449,7 @@ void Watermark::RenderMenu() {
                 if (GUI::RenderButton("Retry Load")) InitializeTextures();
             } else {
                 ImGui::Text("Preview:");
-                ImGui::Image((ImTextureID)g_watermarkTexture, ImVec2(100, 100 / ((float)g_texWidth / g_texHeight)), ImVec2(0,0), ImVec2(1,1), ImVec4(1,1,1,g_imageOpacity), ImVec4(0,0,0,0));
+                ImGui::Image((ImTextureID)g_watermarkTexture, ImVec2(100, 100 / ((float)g_texWidth / g_texHeight)), ImVec2(0,0), ImVec2(1,1), ImVec4(GUI::g_colorAccent.x, GUI::g_colorAccent.y, GUI::g_colorAccent.z, g_imageOpacity), ImVec4(0,0,0,0));
             }
         }
         
