@@ -23,7 +23,7 @@ jobs:
       - name: Build
         run: cmake --build build --config ${{ env.BUILD_TYPE }}
 
-      - name: Verify Azyre.dll
+      - name: Verify Kitty.dll
         shell: pwsh
         run: |
           $dll = "./build/Release/Kitty.dll"
