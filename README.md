@@ -1,21 +1,21 @@
 <div align="center">
 
-<img src="Assets/azyrewatermark.png" alt="Azyre Logo" width="140" />
+<img src="Assets/logo.png" alt="Kitty Logo" width="140" />
 
-# Azyre Client
+# KittyDLL
 
 **A next-generation Minecraft utility client powered by DirectX 11 and Dear ImGui**
 
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-00599C?style=for-the-badge&logo=c%2B%2B&logoColor=white)](https://en.cppreference.com/w/cpp/20)
 [![DirectX 11](https://img.shields.io/badge/DirectX-11-68217A?style=for-the-badge&logo=microsoft&logoColor=white)](https://learn.microsoft.com/en-us/windows/win32/direct3d11/dx-graphics-overviews)
 [![Windows](https://img.shields.io/badge/Windows-10%2F11-0078D6?style=for-the-badge&logo=windows&logoColor=white)](https://www.microsoft.com/windows)
-[![CMake](https://img.shields.io/badge/CMake-4.x-064F8C?style=for-the-badge&logo=cmake&logoColor=white)](https://cmake.org/)
-[![License](https://img.shields.io/badge/License-ADPSL-red?style=for-the-badge)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-1.0.9-brightgreen?style=for-the-badge)](https://github.com/AnarchDevelopment/aegledll/releases)
+[![CMake](https://img.shields.io/badge/CMake-3.20+-064F8C?style=for-the-badge&logo=cmake&logoColor=white)](https://cmake.org/)
+[![License](https://img.shields.io/badge/License-ADPSL--1.1-red?style=for-the-badge)](LICENSE)
+[![Version](https://img.shields.io/badge/Version-2.0.0-brightgreen?style=for-the-badge)](https://github.com/AnarchDevelopment/AmatayakulDLL/releases)
 
 <br/>
 
-> Built by [**an4rch Development**](https://github.com/AnarchDevelopment) — precision-engineered for performance and extensibility.
+> **KittyDLL v2** — a complete rewrite of the legacy [AmatayakulDLL](https://github.com/AnarchDevelopment/AmatayakulDLL), built on top of the [Azyre](https://github.com/AnarchDevelopment/AzyreDll) codebase by [**an4rch Development**](https://anarchdevelopment.github.io/).
 
 </div>
 
@@ -24,12 +24,14 @@
 ## Overview
 
 <div align="center">
-  
-<img src="Assets/Preview.png" alt="Azyre Logo" width="750" />
+
+<img src="Assets/Preview.png" alt="Kitty Preview" width="750" />
 
 </div>
 
-**Azyre** is a high-performance C++20 DLL client that hooks into Minecraft's rendering pipeline via DirectX 11. It provides a comprehensive suite of modules — from combat assists to visual overlays — wrapped in a sleek, GPU-accelerated ImGui interface.
+**KittyDLL** is a high-performance C++20 DLL client that hooks into Minecraft's rendering pipeline via DirectX 11. It provides a comprehensive suite of modules — from combat assists to visual overlays — wrapped in a sleek, GPU-accelerated ImGui interface.
+
+> **Lineage:** AmatayakulDLL (legacy) → Azyre fork → **KittyDLL v2.0.0** (complete rewrite)
 
 | Layer | Technology |
 |---|---|
@@ -37,7 +39,7 @@
 | Rendering | DirectX 11 + HLSL shaders |
 | GUI | Dear ImGui with custom DX11 backend |
 | Hooking | MinHook (x64) |
-| Config | nlohmann/json |
+| Config | nlohmann/json (built-in default preset) |
 | Audio | miniaudio |
 | Images | stb_image / stb_image_write |
 | Networking | Winsock2 / IRC client |
@@ -47,9 +49,9 @@
 ## Project Structure
 
 ```
-Azyre/
+KittyDLL/
 ├── Animations/          # Easing & animation system
-├── ArrayList/           # HUD active-module list
+├── ArrayList/           # HUD active-module list (centralized renderer)
 ├── Assets/              # Fonts, textures, shaders, audio, RC resources
 │   ├── Fonts/
 │   ├── CategoryImage/
@@ -85,7 +87,7 @@ Azyre/
 
 ## Module System
 
-Each module lives in its own directory with a `.hpp`/`.cpp` pair and registers itself through the `ModuleManager`.
+Each module lives in its own directory with a `.hpp`/`.cpp` pair and registers itself through the `ModuleManager`. All HUD elements support **drag, resize, and snap-to-other alignment**.
 
 ### ⚔️ Combat
 | Module | Description |
@@ -93,10 +95,10 @@ Each module lives in its own directory with a `.hpp`/`.cpp` pair and registers i
 | **Hitbox** | Expands entity hitboxes for easier targeting |
 | **Reach** | Extends melee attack range |
 
-### Movement
+### 🏃 Movement
 | Module | Description |
 |---|---|
-| **AutoSprint** | Automatically maintains sprint state |
+| **AutoSprint** | Automatically maintains sprint state with HUD text overlay |
 | **Fly** | Free-flight movement override |
 | **Glide** | Reduces fall speed for smooth descent |
 | **Timer** | Adjusts game tick speed |
@@ -104,11 +106,11 @@ Each module lives in its own directory with a `.hpp`/`.cpp` pair and registers i
 ### 👁️ Visuals
 | Module | Description |
 |---|---|
-| **ClickGUI** | Full-featured category-based settings panel |
-| **ArrayList** | HUD list of active modules |
+| **ClickGUI** | Full-featured category-based settings panel with Rise Background DX11 shader |
+| **ArrayList** | HUD list of active modules (centralized renderer) |
 | **CPSCounter** | Real-time clicks-per-second overlay |
 | **FPSOverlay** | Framerate display |
-| **FullBright** | Maximum ambient lighting |
+| **FullBright** | Maximum ambient lighting (pattern-scanned) |
 | **Keystrokes** | Animated key-press display |
 | **MotionBlur** | Post-process motion blur via HLSL |
 | **PingCounter** | Live network latency overlay |
@@ -120,7 +122,7 @@ Each module lives in its own directory with a `.hpp`/`.cpp` pair and registers i
 | Module | Description |
 |---|---|
 | **AntiAFK** | Prevents AFK kick |
-| **AutoClicker** | Configurable automatic clicking |
+| **NoHurtCam** | Disables hurt camera effect (pattern-scanned) |
 | **Screenshot** | In-game screenshot capture |
 | **UnlockFPS** | Removes frame rate cap via DXGI |
 
@@ -140,25 +142,33 @@ Each module lives in its own directory with a `.hpp`/`.cpp` pair and registers i
 - [CMake 3.20+](https://cmake.org/download/)
 - Windows SDK 10.0+
 
-### Build with CMake
+### Quick Build (PowerShell)
+
+```powershell
+.\build.ps1
+```
+
+Runs the full CMake configure + Release build in one step. Output: `build/Release/Kitty.dll`
+
+### Build with CMake (manual)
 
 ```bash
 # Clone
-git clone https://github.com/AnarchDevelopment/AzyreDll.git
-cd AzyreDll
+git clone https://github.com/AnarchDevelopment/AmatayakulDLL.git
+cd AmatayakulDLL
 
 # Configure (x64 Release)
-cmake -B build -A x64
+cmake -B build -G "Visual Studio 17 2022" -A x64
 
 # Build
 cmake --build build --config Release
 ```
 
-Output: `build/Release/Azyre.dll`
+Output: `build/Release/Kitty.dll`
 
 ### Build with Visual Studio
 
-1. Open `build/Azyre.slnx` in Visual Studio
+1. Open `build/Kitty.sln` in Visual Studio
 2. Select **Release | x64**
 3. Build → Build Solution (`Ctrl+Shift+B`)
 
@@ -166,16 +176,19 @@ Output: `build/Release/Azyre.dll`
 
 ## Configuration
 
-Configs are stored as JSON files and managed by `Config/ConfigManager`:
+Configs are stored as JSON files and managed by `Config/ConfigManager`. A built-in default preset is embedded at compile time so the client works out of the box without a config file.
 
 ```json
 {
   "modules": {
     "Watermark": { "enabled": true },
-    "MotionBlur": { "enabled": false, "intensity": 0.5 }
+    "MotionBlur": { "enabled": false, "intensity": 0.5 },
+    "NoHurtCam": { "enabled": false }
   }
 }
 ```
+
+HUD element positions and sizes are saved and restored across sessions. The config also persists keybind assignments for each module.
 
 ---
 
@@ -194,10 +207,29 @@ All dependencies are **vendored** — no package manager needed.
 
 ---
 
+## Changelog
+
+### v2.0.0 — Complete Rewrite
+- Full rewrite of legacy AmatayakulDLL codebase
+- New GUI with smooth appearance/disappearance animations
+- Rise Background DX11 shader for ClickGUI
+- Improved MotionBlur and expanded ClickGUI styles
+- Centralized ArrayList renderer
+- HUD resize/drag scale saved to config
+- Built-in default config preset embedded at compile time
+- Dynamic startup message
+- Fixed RSHIFT/LSHIFT disambiguation in keybind system
+- **New module**: NoHurtCam (pattern-scanned hurt cam disable)
+- AutoSprint HUD text overlay
+
+---
+
 ## License
 
-This project is licensed under the **an4rch Development Public Source License 1.0**.  
+This project is licensed under the **an4rch Development Public Source License v1.1 (ADPSL-1.1)**.  
 See [LICENSE](LICENSE) for full terms.
+
+This is a **source-available** permissive license. Attribution to the original authors and project must be preserved in all derivative works. Original work by [an4rch Development](https://anarchdevelopment.github.io/).
 
 ---
 
