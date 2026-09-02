@@ -15,6 +15,7 @@ Under an4rch Development Public Source License 1.0
 #include "../Hook/Hook.hpp"
 #include "../Input/Input.hpp"
 #include "../Config/ConfigManager.hpp"
+#include "../Utils/HudElement.hpp"
 
 DWORD WINAPI Present::MainThread(LPVOID lpReserved) {
     UnlockFPS::Initialize();
@@ -82,10 +83,9 @@ HRESULT Present::Run(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT Flags) 
     UnlockFPS::UpdateFPS(pSwapChain);
 
     // --- Auto-save throttle -------------------------------------------------
-    // If the menu is open and ImGui captured mouse/keyboard this frame (user
-    // interacted with a widget), mark a dirty timestamp.  1 second after the
-    // last interaction we flush the active config to disk so no write storms
-    // occur while the user drags a slider.
+    // Triggers when the user interacts with ImGui widgets OR drags/resizes a
+    // HUD element (which bypasses ImGui's WantCaptureMouse). 1 second debounce
+    // prevents write storms while the user is actively dragging.
     {
         static ULONGLONG s_dirtyAt  = 0;
         static bool      s_isDirty  = false;
@@ -98,7 +98,11 @@ HRESULT Present::Run(IDXGISwapChain* pSwapChain, UINT SyncInterval, UINT Flags) 
                             io.MouseReleased[0] || io.MouseReleased[1] ||
                             io.WantCaptureKeyboard);
 
-        if (interacting) {
+        // Also catch HUD drag/resize which bypasses ImGui widget capture
+        bool hudInteracting = HudElement::s_anyDirty;
+        HudElement::s_anyDirty = false; // reset each frame
+
+        if (interacting || hudInteracting) {
             s_isDirty = true;
             s_dirtyAt = now;
         }

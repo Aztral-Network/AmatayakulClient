@@ -20,6 +20,9 @@ struct HudElement {
     inline static int s_snapCount = 0;
     inline static float s_snapThreshold = 8.0f;
     inline static bool s_snapEnabled = true;
+    // Set to true this frame when any HudElement was dragged/resized.
+    // Present.cpp reads and clears this to trigger auto-save.
+    inline static bool s_anyDirty = false;
 
     static void RegisterSnapTarget(HudElement* el) {
         if (!el || s_snapCount >= 16) return;
@@ -62,6 +65,7 @@ struct HudElement {
         if (dragging) {
             pos = ImVec2(mouse.x - dragOffset.x, mouse.y - dragOffset.y);
             if (s_snapEnabled) SnapToOthers();
+            s_anyDirty = true;
         }
 
         if (resizing) {
@@ -72,6 +76,7 @@ struct HudElement {
             scale = grabStartScale * ratio;
             if (scale < 0.3f) scale = 0.3f;
             if (scale > 5.0f) scale = 5.0f;
+            s_anyDirty = true;
         }
     }
 
