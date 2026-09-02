@@ -1,10 +1,10 @@
 <div align="center">
 
-<img src="Assets/logo.png" alt="Kitty Logo" width="140" />
+<img src="Assets/logo.png" alt="Amatayakul Logo" width="140" />
 
-# KittyDLL
+# Amatayakul Client
 
-**A next-generation Minecraft utility client powered by DirectX 11 and Dear ImGui**
+**A legit client version of the Azyre hacked client, powered by DirectX 11 and Dear ImGui**
 
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-00599C?style=for-the-badge&logo=c%2B%2B&logoColor=white)](https://en.cppreference.com/w/cpp/20)
 [![DirectX 11](https://img.shields.io/badge/DirectX-11-68217A?style=for-the-badge&logo=microsoft&logoColor=white)](https://learn.microsoft.com/en-us/windows/win32/direct3d11/dx-graphics-overviews)
@@ -15,7 +15,7 @@
 
 <br/>
 
-> **KittyDLL v2** — a complete rewrite of the legacy [AmatayakulDLL](https://github.com/AnarchDevelopment/AmatayakulDLL), built on top of the [Azyre](https://github.com/AnarchDevelopment/AzyreDll) codebase by [**an4rch Development**](https://anarchdevelopment.github.io/).
+> **Amatayakul Client v2** — a complete rewrite of the legacy [AmatayakulDLL](https://github.com/AnarchDevelopment/AmatayakulDLL), built as a legit client on top of the [Azyre](https://github.com/AnarchDevelopment/AzyreDll) codebase by [**an4rch Development**](https://anarchdevelopment.github.io/).
 
 </div>
 
@@ -25,13 +25,13 @@
 
 <div align="center">
 
-<img src="Assets/Preview.png" alt="Kitty Preview" width="750" />
+<img src="Assets/Preview.png" alt="Amatayakul Preview" width="750" />
 
 </div>
 
-**KittyDLL** is a high-performance C++20 DLL client that hooks into Minecraft's rendering pipeline via DirectX 11. It provides a comprehensive suite of modules — from combat assists to visual overlays — wrapped in a sleek, GPU-accelerated ImGui interface.
+**Amatayakul Client** is a high-performance C++20 DLL client that hooks into Minecraft's rendering pipeline via DirectX 11. Built as a "legit client" counterpart to the Azyre hacked client, it provides a refined suite of modules — focused on utility, performance, and visual overlays — wrapped in a sleek, GPU-accelerated ImGui interface.
 
-> **Lineage:** AmatayakulDLL (legacy) → Azyre fork → **KittyDLL v2.0.0** (complete rewrite)
+> **Lineage:** AmatayakulDLL (legacy) → Azyre fork → **Amatayakul Client v2.0.0** (complete rewrite)
 
 | Layer | Technology |
 |---|---|
@@ -49,7 +49,7 @@
 ## Project Structure
 
 ```
-KittyDLL/
+AmatayakulDLL/
 ├── Animations/          # Easing & animation system
 ├── ArrayList/           # HUD active-module list (centralized renderer)
 ├── Assets/              # Fonts, textures, shaders, audio, RC resources
@@ -211,6 +211,7 @@ All dependencies are **vendored** — no package manager needed.
 
 ### v2.0.0 — Complete Rewrite
 - Full rewrite of legacy AmatayakulDLL codebase
+- Repurposed as a legit client based on Azyre
 - New GUI with smooth appearance/disappearance animations
 - Rise Background DX11 shader for ClickGUI
 - Improved MotionBlur and expanded ClickGUI styles
