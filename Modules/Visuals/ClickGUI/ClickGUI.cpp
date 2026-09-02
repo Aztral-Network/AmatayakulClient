@@ -1414,7 +1414,7 @@ void ClickGUI::RenderFigmaMenu(float screenWidth, float screenHeight) {
 
         ImGui::SetCursorPos(ImVec2(18.0f, 13.0f));
         ImGui::PushFont(GUI::g_fontH3 ? GUI::g_fontH3 : ImGui::GetFont());
-        ImGui::TextColored(ImVec4(0.95f, 0.97f, 0.98f, 1.0f), "AZYRE");
+        ImGui::TextColored(ImVec4(0.95f, 0.97f, 0.98f, 1.0f), "AMATAYAKUL");
         ImGui::PopFont();
         ImGui::SameLine(0.0f, 10.0f);
         ImGui::SetCursorPosY(22.0f);
@@ -2884,7 +2884,7 @@ void ClickGUI::RenderLunarMenu(float screenWidth, float screenHeight) {
         float brandX = -16.0f * sc * (1.0f - brandProg);
         int brandAlpha = (int)(255.0f * brandProg);
         ImGui::PushFont(GUI::g_fontH1 ? GUI::g_fontH1 : GUI::g_fontDefault);
-        draw->AddText(wPos + ImVec2(20.0f * sc + brandX, 22.0f * sc), IM_COL32(245, 245, 250, brandAlpha), "AZYRE");
+        draw->AddText(wPos + ImVec2(20.0f * sc + brandX, 22.0f * sc), IM_COL32(245, 245, 250, brandAlpha), "AMATAYAKUL");
         ImGui::PopFont();
         ImGui::PushFont(GUI::g_fontDefault);
         draw->AddText(wPos + ImVec2(20.0f * sc + brandX, 52.0f * sc), ImColor(accentV.x, accentV.y, accentV.z, brandProg), "LUNAR EDITION");
