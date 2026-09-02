@@ -269,6 +269,7 @@ nlohmann::json ConfigManager::CollectCurrentConfig() {
     if (RenderInfo::g_renderInfoHud) {
         config["Visuals"]["RenderInfo"]["position"]["x"] = RenderInfo::g_renderInfoHud->pos.x;
         config["Visuals"]["RenderInfo"]["position"]["y"] = RenderInfo::g_renderInfoHud->pos.y;
+        config["Visuals"]["RenderInfo"]["hudScale"] = RenderInfo::g_renderInfoHud->scale;
     }
 
     config["Visuals"]["Watermark"]["enabled"] = Watermark::g_showWatermark;
@@ -316,6 +317,7 @@ nlohmann::json ConfigManager::CollectCurrentConfig() {
     if (Watermark::g_watermarkHud) {
         config["Visuals"]["Watermark"]["position"]["x"] = Watermark::g_watermarkHud->pos.x;
         config["Visuals"]["Watermark"]["position"]["y"] = Watermark::g_watermarkHud->pos.y;
+        config["Visuals"]["Watermark"]["hudScale"] = Watermark::g_watermarkHud->scale;
     }
 
     // ArrayList
@@ -364,6 +366,7 @@ nlohmann::json ConfigManager::CollectCurrentConfig() {
     if (ArrayList::g_hud) {
         config["Visuals"]["ArrayList"]["position"]["x"] = ArrayList::g_hud->pos.x;
         config["Visuals"]["ArrayList"]["position"]["y"] = ArrayList::g_hud->pos.y;
+        config["Visuals"]["ArrayList"]["hudScale"] = ArrayList::g_hud->scale;
     }
 
     config["Visuals"]["MotionBlur"]["enabled"] = MotionBlur::g_motionBlurEnabled;
@@ -388,6 +391,7 @@ nlohmann::json ConfigManager::CollectCurrentConfig() {
     if (Keystrokes::g_keystrokesHud) {
         config["Visuals"]["Keystrokes"]["position"]["x"] = Keystrokes::g_keystrokesHud->pos.x;
         config["Visuals"]["Keystrokes"]["position"]["y"] = Keystrokes::g_keystrokesHud->pos.y;
+        config["Visuals"]["Keystrokes"]["hudScale"] = Keystrokes::g_keystrokesHud->scale;
     }
     // Save Keystrokes colors
     config["Visuals"]["Keystrokes"]["colors"]["bgColor"] = 
@@ -429,6 +433,7 @@ nlohmann::json ConfigManager::CollectCurrentConfig() {
     if (CPSCounter::g_cpsHud) {
         config["Visuals"]["CPSCounter"]["position"]["x"] = CPSCounter::g_cpsHud->pos.x;
         config["Visuals"]["CPSCounter"]["position"]["y"] = CPSCounter::g_cpsHud->pos.y;
+        config["Visuals"]["CPSCounter"]["hudScale"] = CPSCounter::g_cpsHud->scale;
     }
     // Save CPSCounter colors
     config["Visuals"]["CPSCounter"]["colors"]["textColor"] = 
@@ -454,6 +459,7 @@ nlohmann::json ConfigManager::CollectCurrentConfig() {
     if (FPSOverlay::g_fpsHud) {
         config["Visuals"]["FPSOverlay"]["position"]["x"] = FPSOverlay::g_fpsHud->pos.x;
         config["Visuals"]["FPSOverlay"]["position"]["y"] = FPSOverlay::g_fpsHud->pos.y;
+        config["Visuals"]["FPSOverlay"]["hudScale"] = FPSOverlay::g_fpsHud->scale;
     }
 
     // PingCounter
@@ -473,6 +479,7 @@ nlohmann::json ConfigManager::CollectCurrentConfig() {
     if (PingCounter::g_pingHud) {
         config["Visuals"]["PingCounter"]["position"]["x"] = PingCounter::g_pingHud->pos.x;
         config["Visuals"]["PingCounter"]["position"]["y"] = PingCounter::g_pingHud->pos.y;
+        config["Visuals"]["PingCounter"]["hudScale"] = PingCounter::g_pingHud->scale;
     }
 
     // PlayerInfo
@@ -495,6 +502,7 @@ nlohmann::json ConfigManager::CollectCurrentConfig() {
     if (PlayerInfo::g_playerInfoHud) {
         config["Visuals"]["PlayerInfo"]["position"]["x"] = PlayerInfo::g_playerInfoHud->pos.x;
         config["Visuals"]["PlayerInfo"]["position"]["y"] = PlayerInfo::g_playerInfoHud->pos.y;
+        config["Visuals"]["PlayerInfo"]["hudScale"] = PlayerInfo::g_playerInfoHud->scale;
     }
 
     config["Misc"]["UnlockFPS"]["enabled"] = UnlockFPS::g_unlockFpsEnabled;
@@ -556,6 +564,7 @@ void ConfigManager::ApplyConfig(const nlohmann::json& config) {
             if (config["Movement"]["AutoSprint"].contains("position") && AutoSprint::g_sprintTextHud) {
                 AutoSprint::g_sprintTextHud->pos.x = config["Movement"]["AutoSprint"]["position"]["x"];
                 AutoSprint::g_sprintTextHud->pos.y = config["Movement"]["AutoSprint"]["position"]["y"];
+                AutoSprint::g_sprintTextHud->hasConfigPos = true;
             }
             if (config["Movement"]["AutoSprint"].contains("scale") && AutoSprint::g_sprintTextHud) {
                 AutoSprint::g_sprintTextHud->scale = config["Movement"]["AutoSprint"]["scale"];
@@ -595,6 +604,10 @@ void ConfigManager::ApplyConfig(const nlohmann::json& config) {
             if (visuals["RenderInfo"].contains("position") && RenderInfo::g_renderInfoHud) {
                 RenderInfo::g_renderInfoHud->pos.x = visuals["RenderInfo"]["position"]["x"];
                 RenderInfo::g_renderInfoHud->pos.y = visuals["RenderInfo"]["position"]["y"];
+                RenderInfo::g_renderInfoHud->hasConfigPos = true;
+            }
+            if (visuals["RenderInfo"].contains("hudScale") && RenderInfo::g_renderInfoHud) {
+                RenderInfo::g_renderInfoHud->scale = visuals["RenderInfo"]["hudScale"];
             }
         }
         if (visuals.contains("Watermark")) {
@@ -658,6 +671,10 @@ void ConfigManager::ApplyConfig(const nlohmann::json& config) {
             if (wm.contains("position") && Watermark::g_watermarkHud) {
                 Watermark::g_watermarkHud->pos.x = wm["position"]["x"];
                 Watermark::g_watermarkHud->pos.y = wm["position"]["y"];
+                Watermark::g_watermarkHud->hasConfigPos = true;
+            }
+            if (wm.contains("hudScale") && Watermark::g_watermarkHud) {
+                Watermark::g_watermarkHud->scale = wm["hudScale"];
             }
         }
         
@@ -717,6 +734,10 @@ void ConfigManager::ApplyConfig(const nlohmann::json& config) {
             if (al.contains("position") && ArrayList::g_hud) {
                 ArrayList::g_hud->pos.x = al["position"]["x"];
                 ArrayList::g_hud->pos.y = al["position"]["y"];
+                ArrayList::g_hud->hasConfigPos = true;
+            }
+            if (al.contains("hudScale") && ArrayList::g_hud) {
+                ArrayList::g_hud->scale = al["hudScale"];
             }
         }
         if (visuals.contains("MotionBlur")) {
@@ -749,6 +770,10 @@ void ConfigManager::ApplyConfig(const nlohmann::json& config) {
             if (visuals["Keystrokes"].contains("position") && Keystrokes::g_keystrokesHud) {
                 Keystrokes::g_keystrokesHud->pos.x = visuals["Keystrokes"]["position"]["x"];
                 Keystrokes::g_keystrokesHud->pos.y = visuals["Keystrokes"]["position"]["y"];
+                Keystrokes::g_keystrokesHud->hasConfigPos = true;
+            }
+            if (visuals["Keystrokes"].contains("hudScale") && Keystrokes::g_keystrokesHud) {
+                Keystrokes::g_keystrokesHud->scale = visuals["Keystrokes"]["hudScale"];
             }
             // Load Keystrokes colors
             if (visuals["Keystrokes"].contains("colors")) {
@@ -807,37 +832,16 @@ void ConfigManager::ApplyConfig(const nlohmann::json& config) {
                 if (CPSCounter::g_cpsHud) {
                     CPSCounter::g_cpsHud->pos.x = visuals["CPSCounter"]["position"]["x"];
                     CPSCounter::g_cpsHud->pos.y = visuals["CPSCounter"]["position"]["y"];
+                    CPSCounter::g_cpsHud->hasConfigPos = true;
                 }
+            }
+            if (visuals["CPSCounter"].contains("hudScale") && CPSCounter::g_cpsHud) {
+                CPSCounter::g_cpsHud->scale = visuals["CPSCounter"]["hudScale"];
             }
             if (visuals["CPSCounter"].contains("fontName") && visuals["CPSCounter"]["fontName"].is_string()) {
                 CPSCounter::g_fontName = visuals["CPSCounter"]["fontName"];
             }
 
-            if (visuals.contains("FPSOverlay")) {
-                auto& fps = visuals["FPSOverlay"];
-                if (fps.contains("enabled")) FPSOverlay::g_showFpsOverlay = fps["enabled"];
-                if (fps.contains("scale")) FPSOverlay::g_fpsTextScale = fps["scale"];
-                if (fps.contains("showBackground")) FPSOverlay::g_showBackground = fps["showBackground"];
-                if (fps.contains("bgOpacity")) FPSOverlay::g_bgOpacity = fps["bgOpacity"];
-                if (fps.contains("fontName") && fps["fontName"].is_string()) {
-                    FPSOverlay::g_fontName = fps["fontName"];
-                }
-
-                if (fps.contains("colors")) {
-                    auto& c = fps["colors"];
-                    if (c.contains("textColor")) {
-                        FPSOverlay::g_fpsTextColor = ImVec4(c["textColor"][0], c["textColor"][1], c["textColor"][2], c["textColor"][3]);
-                    }
-                    if (c.contains("accentColor")) {
-                        FPSOverlay::g_accentColor = ImVec4(c["accentColor"][0], c["accentColor"][1], c["accentColor"][2], c["accentColor"][3]);
-                    }
-                }
-
-                if (fps.contains("position") && FPSOverlay::g_fpsHud) {
-                    FPSOverlay::g_fpsHud->pos.x = fps["position"]["x"];
-                    FPSOverlay::g_fpsHud->pos.y = fps["position"]["y"];
-                }
-            }
             // Load CPSCounter colors
             if (visuals["CPSCounter"].contains("colors")) {
                 auto& colors = visuals["CPSCounter"]["colors"];
@@ -849,6 +853,36 @@ void ConfigManager::ApplyConfig(const nlohmann::json& config) {
                     CPSCounter::g_cpsCounterShadowColor = ImVec4(colors["shadowColor"][0], colors["shadowColor"][1], 
                                                                    colors["shadowColor"][2], colors["shadowColor"][3]);
                 }
+            }
+        }
+        
+        if (visuals.contains("FPSOverlay")) {
+            auto& fps = visuals["FPSOverlay"];
+            if (fps.contains("enabled")) FPSOverlay::g_showFpsOverlay = fps["enabled"];
+            if (fps.contains("scale")) FPSOverlay::g_fpsTextScale = fps["scale"];
+            if (fps.contains("showBackground")) FPSOverlay::g_showBackground = fps["showBackground"];
+            if (fps.contains("bgOpacity")) FPSOverlay::g_bgOpacity = fps["bgOpacity"];
+            if (fps.contains("fontName") && fps["fontName"].is_string()) {
+                FPSOverlay::g_fontName = fps["fontName"];
+            }
+
+            if (fps.contains("colors")) {
+                auto& c = fps["colors"];
+                if (c.contains("textColor")) {
+                    FPSOverlay::g_fpsTextColor = ImVec4(c["textColor"][0], c["textColor"][1], c["textColor"][2], c["textColor"][3]);
+                }
+                if (c.contains("accentColor")) {
+                    FPSOverlay::g_accentColor = ImVec4(c["accentColor"][0], c["accentColor"][1], c["accentColor"][2], c["accentColor"][3]);
+                }
+            }
+
+            if (fps.contains("position") && FPSOverlay::g_fpsHud) {
+                FPSOverlay::g_fpsHud->pos.x = fps["position"]["x"];
+                FPSOverlay::g_fpsHud->pos.y = fps["position"]["y"];
+                FPSOverlay::g_fpsHud->hasConfigPos = true;
+            }
+            if (fps.contains("hudScale") && FPSOverlay::g_fpsHud) {
+                FPSOverlay::g_fpsHud->scale = fps["hudScale"];
             }
         }
         // PingCounter
@@ -873,6 +907,10 @@ void ConfigManager::ApplyConfig(const nlohmann::json& config) {
             if (pc.contains("position") && PingCounter::g_pingHud) {
                 PingCounter::g_pingHud->pos.x = pc["position"]["x"];
                 PingCounter::g_pingHud->pos.y = pc["position"]["y"];
+                PingCounter::g_pingHud->hasConfigPos = true;
+            }
+            if (pc.contains("hudScale") && PingCounter::g_pingHud) {
+                PingCounter::g_pingHud->scale = pc["hudScale"];
             }
         }
         // PlayerInfo
@@ -898,6 +936,10 @@ void ConfigManager::ApplyConfig(const nlohmann::json& config) {
             if (pi.contains("position") && PlayerInfo::g_playerInfoHud) {
                 PlayerInfo::g_playerInfoHud->pos.x = pi["position"]["x"];
                 PlayerInfo::g_playerInfoHud->pos.y = pi["position"]["y"];
+                PlayerInfo::g_playerInfoHud->hasConfigPos = true;
+            }
+            if (pi.contains("hudScale") && PlayerInfo::g_playerInfoHud) {
+                PlayerInfo::g_playerInfoHud->scale = pi["hudScale"];
             }
         }
         if (visuals.contains("ClickGUI")) {

@@ -226,8 +226,9 @@ void Keystrokes::RenderDisplay(float sw, float sh) {
         g_keystrokesHud->size = keystrokesSize;
         
         // Initialize position on first draw
-        if (g_keystrokesHud->pos.y == 0) {
+        if (!g_keystrokesHud->hasConfigPos) {
             g_keystrokesHud->pos = ImVec2(30, sh - 250);
+            g_keystrokesHud->hasConfigPos = true;
         }
         
         // Handle drag and clamp when menu open

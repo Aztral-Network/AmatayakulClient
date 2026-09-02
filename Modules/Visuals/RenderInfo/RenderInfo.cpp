@@ -31,6 +31,8 @@ std::string RenderInfo::g_fontName = "Default";
 
 void RenderInfo::Initialize(HudElement* hud) {
     g_renderInfoHud = hud;
+    // Set default position here so ApplyConfig() can safely overwrite it later.
+    if (g_renderInfoHud) g_renderInfoHud->pos = ImVec2(10, 100);
 }
 
 void RenderInfo::UpdateAnimation(ULONGLONG now) {
@@ -90,11 +92,7 @@ void RenderInfo::RenderWindow() {
         ImVec2 renderInfoSize = ImVec2(naturalSize.x * g_renderInfoHud->scale, naturalSize.y * g_renderInfoHud->scale);
         g_renderInfoHud->size = renderInfoSize;
         
-        // Initialize position on first draw
-        if (g_renderInfoHud->pos.x == 0 && g_renderInfoHud->pos.y == 0) {
-            g_renderInfoHud->pos = ImVec2(10, 50);
-        }
-        
+
         // Handle drag and clamp when menu open
         extern bool g_showMenu;
         g_renderInfoHud->HandleDrag(GUI::IsHudEditable());

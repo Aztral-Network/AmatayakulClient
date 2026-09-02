@@ -206,8 +206,9 @@ void AutoSprint::RenderSprintText() {
         float boxH = textSize.y + padY * 2.0f;
         g_sprintTextHud->size = ImVec2(boxW, boxH);
 
-        if (g_sprintTextHud->pos.x == 0 && g_sprintTextHud->pos.y == 0) {
+        if (!g_sprintTextHud->hasConfigPos) {
             g_sprintTextHud->pos = ImVec2(ImGui::GetIO().DisplaySize.x * 0.5f - boxW * 0.5f, ImGui::GetIO().DisplaySize.y * 0.75f);
+            g_sprintTextHud->hasConfigPos = true;
         }
         g_sprintTextHud->HandleDrag(GUI::IsHudEditable());
         g_sprintTextHud->ClampToScreen();
@@ -236,8 +237,9 @@ void AutoSprint::RenderSprintText() {
             (textSize.x + rawPad) * g_sprintTextHud->scale,
             (fontSize + rawPad) * g_sprintTextHud->scale);
 
-        if (g_sprintTextHud->pos.x == 0 && g_sprintTextHud->pos.y == 0) {
+        if (!g_sprintTextHud->hasConfigPos) {
             g_sprintTextHud->pos = ImVec2(ImGui::GetIO().DisplaySize.x * 0.5f - g_sprintTextHud->size.x * 0.5f, ImGui::GetIO().DisplaySize.y * 0.75f);
+            g_sprintTextHud->hasConfigPos = true;
         }
         g_sprintTextHud->HandleDrag(GUI::IsHudEditable());
         g_sprintTextHud->ClampToScreen();

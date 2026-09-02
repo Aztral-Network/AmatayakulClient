@@ -723,8 +723,9 @@ void PingCounter::RenderDisplay(float sw, float sh) {
         
         g_pingHud->size = ImVec2(textSize.x + paddingX * 2, textSize.y + paddingY * 2);
         
-        if (g_pingHud->pos.x == 0 && g_pingHud->pos.y == 0) {
+        if (!g_pingHud->hasConfigPos) {
             g_pingHud->pos = ImVec2(sw - g_pingHud->size.x - 10, 10);
+            g_pingHud->hasConfigPos = true;
         }
         
         extern bool g_showMenu;

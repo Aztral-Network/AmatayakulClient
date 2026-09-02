@@ -147,8 +147,9 @@ void CPSCounter::RenderDisplay(int screenWidth, int screenHeight) {
     
     if (g_showCpsCounter || g_cpsCounterAnim > 0.01f) {
         // Initialize position on first draw
-        if (g_cpsHud->pos.x == 500 && g_cpsHud->pos.y == 400) {
+        if (!g_cpsHud->hasConfigPos) {
             g_cpsHud->pos = ImVec2(screenWidth / 2.0f - 50.0f, (float)screenHeight - 100.0f);
+            g_cpsHud->hasConfigPos = true;
         }
         
         // Calculate text size for collision box

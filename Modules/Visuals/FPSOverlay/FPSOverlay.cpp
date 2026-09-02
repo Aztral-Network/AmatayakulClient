@@ -33,9 +33,8 @@ void FPSOverlay::Initialize(HudElement* hudElement) {
     g_fpsHud = hudElement;
     if (g_fpsHud) {
         g_fpsHud->size = ImVec2(100, 35);
-        if (g_fpsHud->pos.x == 0 && g_fpsHud->pos.y == 0) {
-            g_fpsHud->pos = ImVec2(10, 250);
-        }
+        // Set default position here so ApplyConfig() can safely overwrite it later.
+        g_fpsHud->pos = ImVec2(10, 250);
     }
 }
 

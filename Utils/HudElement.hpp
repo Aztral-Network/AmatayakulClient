@@ -9,6 +9,7 @@ struct HudElement {
     bool dragging = false;
     bool resizing = false;
     bool resizable = false;
+    bool hasConfigPos = false;
     float scale = 1.0f;
     ImVec2 dragOffset;
     ImVec2 resizeCorner;
