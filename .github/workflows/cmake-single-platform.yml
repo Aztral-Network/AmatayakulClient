@@ -26,11 +26,11 @@ jobs:
       - name: Verify Azyre.dll
         shell: pwsh
         run: |
-          $dll = "./build/Release/Azyre.dll"
+          $dll = "./build/Release/Kitty.dll"
 
           if (Test-Path $dll) {
-              Write-Host "Azyre.dll found: $dll"
+              Write-Host "Kitty.dll found: $dll"
           } else {
-              Write-Error "Azyre.dll was not generated."
+              Write-Error "Kitty.dll was not generated."
               exit 1
           }
