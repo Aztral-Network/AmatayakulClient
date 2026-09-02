@@ -101,6 +101,36 @@ bool GUI::g_marketFetchFailed = false;
 char g_notifTitle[64] = "Amatayakul Client";
 char g_notifMessage[128] = "DLL loaded successfully.\nPress RSHIFT to open GUI.";
 
+// Returns a human-readable name for a virtual key code.
+static std::string VkToName(int vk) {
+    if (vk == 0) return "None";
+    // Keys that need the extended-key bit set to disambiguate
+    bool extended = (vk == VK_RSHIFT || vk == VK_RCONTROL || vk == VK_RMENU ||
+                     vk == VK_INSERT || vk == VK_HOME || vk == VK_END ||
+                     vk == VK_PRIOR || vk == VK_NEXT ||
+                     vk == VK_UP || vk == VK_DOWN || vk == VK_LEFT || vk == VK_RIGHT ||
+                     vk == VK_DELETE || vk == VK_NUMLOCK);
+    UINT scanCode = MapVirtualKeyA(vk, MAPVK_VK_TO_VSC);
+    char name[64] = {};
+    if (scanCode != 0) {
+        LONG lParam = (scanCode << 16) | (extended ? (1 << 24) : 0);
+        if (GetKeyNameTextA(lParam, name, sizeof(name)) > 0)
+            return name;
+    }
+    // Manual fallbacks for keys where GetKeyNameTextA gives wrong/empty result
+    switch (vk) {
+        case VK_LSHIFT:   return "Left Shift";
+        case VK_RSHIFT:   return "Right Shift";
+        case VK_LCONTROL: return "Left Ctrl";
+        case VK_RCONTROL: return "Right Ctrl";
+        case VK_LMENU:    return "Left Alt";
+        case VK_RMENU:    return "Right Alt";
+    }
+    char buf[16];
+    sprintf_s(buf, "[0x%X]", vk);
+    return buf;
+}
+
 struct CardInfo {
     std::string key;
     ImVec2 pos;
@@ -1032,6 +1062,9 @@ bool GUI::RenderKeybind(const char* label, int* key) {
     if (activeBindPtr == key) {
         bool anyDown = false;
         for (int i = 0x01; i < 256; i++) {
+            // Skip the generic VK_SHIFT/VK_CONTROL/VK_MENU — we want the
+            // left/right variants (VK_LSHIFT etc.) which are polled later.
+            if (i == VK_SHIFT || i == VK_CONTROL || i == VK_MENU) continue;
             if (GetAsyncKeyState(i) & 0x8000) {
                 anyDown = true;
                 if (!waitRelease && i != VK_LBUTTON && i != VK_RBUTTON && i != VK_MBUTTON) {
@@ -1067,18 +1100,9 @@ bool GUI::RenderKeybind(const char* label, int* key) {
     char name[64] = {0};
     if (activeBindPtr == key) {
         strcpy_s(name, "...");
-    } else if (*key == 0) {
-        strcpy_s(name, "None");
     } else {
-        UINT scanCode = MapVirtualKeyA(*key, MAPVK_VK_TO_VSC);
-        if (scanCode == 0 || GetKeyNameTextA(scanCode << 16, name, sizeof(name)) == 0) {
-            if (*key == VK_RSHIFT) strcpy_s(name, "Right Shift");
-            else if (*key == VK_LSHIFT) strcpy_s(name, "Left Shift");
-            else if (*key == VK_INSERT) strcpy_s(name, "Insert");
-            else if (*key == VK_HOME) strcpy_s(name, "Home");
-            else if (*key == VK_END) strcpy_s(name, "End");
-            else sprintf_s(name, "[0x%X]", *key);
-        }
+        std::string n = VkToName(*key);
+        strcpy_s(name, n.c_str());
     }
 
     ImVec2 textSize = ImGui::CalcTextSize(name);

@@ -25,6 +25,34 @@ Under an4rch Development Public Source License 1.0
 std::string ConfigManager::configDir;
 std::string ConfigManager::currentConfig;
 
+extern char g_notifMessage[128];
+extern char g_notifTitle[64];
+
+// Minimal key-name helper used for the startup notification.
+static std::string VkToNotifName(int vk) {
+    if (vk == 0) return "None";
+    bool extended = (vk == VK_RSHIFT || vk == VK_RCONTROL || vk == VK_RMENU ||
+                     vk == VK_INSERT || vk == VK_HOME || vk == VK_END ||
+                     vk == VK_PRIOR || vk == VK_NEXT || vk == VK_DELETE ||
+                     vk == VK_UP || vk == VK_DOWN || vk == VK_LEFT || vk == VK_RIGHT);
+    UINT sc = MapVirtualKeyA(vk, MAPVK_VK_TO_VSC);
+    char name[64] = {};
+    if (sc) {
+        LONG lp = (sc << 16) | (extended ? (1 << 24) : 0);
+        if (GetKeyNameTextA(lp, name, sizeof(name)) > 0) return name;
+    }
+    switch (vk) {
+        case VK_LSHIFT:   return "LSHIFT";
+        case VK_RSHIFT:   return "RSHIFT";
+        case VK_LCONTROL: return "LCTRL";
+        case VK_RCONTROL: return "RCTRL";
+        case VK_LMENU:    return "LALT";
+        case VK_RMENU:    return "RALT";
+    }
+    char buf[16]; sprintf_s(buf, "[0x%X]", vk);
+    return buf;
+}
+
 static bool EnsureDirectoryExists(const std::string& directoryPath) {
     try {
         std::filesystem::path path(directoryPath);
@@ -1249,6 +1277,12 @@ void ConfigManager::ReloadModulesAfterConfig() {
         FullBright::Enable();
     } else {
         FullBright::Disable();
+    }
+
+    // Update the startup notification to reflect the actual bound key
+    {
+        std::string keyName = VkToNotifName(ClickGUI::g_bindKey);
+        sprintf_s(g_notifMessage, "DLL loaded successfully.\nPress %s to open GUI.", keyName.c_str());
     }
 
     Terminal::AddOutput("Modules reloaded after config load.");
