@@ -85,53 +85,6 @@ AmatayakulDLL/
 
 ---
 
-## Module System
-
-Each module lives in its own directory with a `.hpp`/`.cpp` pair and registers itself through the `ModuleManager`. All HUD elements support **drag, resize, and snap-to-other alignment**.
-
-### ⚔️ Combat
-| Module | Description |
-|---|---|
-| **Hitbox** | Expands entity hitboxes for easier targeting |
-| **Reach** | Extends melee attack range |
-
-### 🏃 Movement
-| Module | Description |
-|---|---|
-| **AutoSprint** | Automatically maintains sprint state with HUD text overlay |
-| **Fly** | Free-flight movement override |
-| **Glide** | Reduces fall speed for smooth descent |
-| **Timer** | Adjusts game tick speed |
-
-### 👁️ Visuals
-| Module | Description |
-|---|---|
-| **ClickGUI** | Full-featured category-based settings panel with Rise Background DX11 shader |
-| **ArrayList** | HUD list of active modules (centralized renderer) |
-| **CPSCounter** | Real-time clicks-per-second overlay |
-| **FPSOverlay** | Framerate display |
-| **FullBright** | Maximum ambient lighting (pattern-scanned) |
-| **Keystrokes** | Animated key-press display |
-| **MotionBlur** | Post-process motion blur via HLSL |
-| **PingCounter** | Live network latency overlay |
-| **PlayerInfo** | Nearby player information display |
-| **RenderInfo** | GPU/render statistics overlay |
-| **Watermark** | Customizable client branding |
-
-### 🔧 Misc
-| Module | Description |
-|---|---|
-| **AntiAFK** | Prevents AFK kick |
-| **NoHurtCam** | Disables hurt camera effect (pattern-scanned) |
-| **Screenshot** | In-game screenshot capture |
-| **UnlockFPS** | Removes frame rate cap via DXGI |
-
-### 💬 Networking
-| Module | Description |
-|---|---|
-| **IRC Client** | Built-in IRC chat with overlay panel |
-
----
 
 ## Building
 
