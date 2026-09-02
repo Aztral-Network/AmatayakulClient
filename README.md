@@ -193,8 +193,8 @@ This is a **source-available** permissive license. Attribution to the original a
 
 | Platform | Handle |
 |---|---|
-| GitHub | [@iVyz3r](https://github.com/iVyz3r) |
-| Discord | `nqtvyzer` |
+| GitHub | [@amatayakull](https://github.com/amatayakull) |
+| Discord | `zhenrikepvp_` |
 | Organization | [an4rch Development](https://anarchdevelopment.github.io/) |
 
 </div>
