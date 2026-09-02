@@ -79,10 +79,252 @@ void ConfigManager::Initialize() {
     {
         std::filesystem::path defaultPath = std::filesystem::path(configDir) / "Default.json";
         if (!std::filesystem::exists(defaultPath)) {
-            // Save current (zeroed) state as the default
-            nlohmann::json def = CollectCurrentConfig();
-            std::ofstream f(defaultPath, std::ios::out | std::ios::trunc);
-            if (f.is_open()) f << def.dump(4);
+            // Seed the default config with the built-in preset
+            static const char* kDefaultConfig = R"json({
+    "Misc": {
+        "AntiAFK": {
+            "enabled": false,
+            "intervalSecs": 30.0,
+            "jump": false,
+            "pressDurationMs": 150.0,
+            "randomizeKeys": true
+        },
+        "Screenshot": {
+            "enabled": false,
+            "hotkey": 123,
+            "notifyOnCapture": true,
+            "showHud": true
+        },
+        "UnlockFPS": {
+            "enabled": false,
+            "fpsLimit": 0.0,
+            "lowLatency": true
+        }
+    },
+    "Movement": {
+        "AutoSprint": {
+            "enabled": true,
+            "position": {
+                "x": 1696.123779296875,
+                "y": 453.0
+            },
+            "scale": 1.0,
+            "showSprintText": true,
+            "sprintTextColor": [1.0, 1.0, 1.0, 1.0],
+            "sprintTextMode": 1,
+            "sprintTextScale": 1.673097014427185,
+            "sprintTextShadow": true
+        }
+    },
+    "Visuals": {
+        "ArrayList": {
+            "animationSpeed": 1.0,
+            "animationStyle": 0,
+            "backgroundMode": 0,
+            "bgOpacity": 0.75,
+            "blurOpacity": 0.30000001192092896,
+            "blurRadius": 6.0,
+            "borderRadius": 4.0,
+            "borderWidth": 1.0,
+            "chromaSideBar": true,
+            "chromaSpeed": 2.0,
+            "chromaText": false,
+            "colors": {
+                "bgColor": [0.019999999552965164, 0.019999999552965164, 0.05999999865889549, 1.0],
+                "borderColor": [1.0, 1.0, 1.0, 0.3499999940395355],
+                "sideBarColor": [1.0, 0.4000000059604645, 0.800000011920929, 1.0],
+                "suffixColor": [0.550000011920929, 0.550000011920929, 0.6800000071525574, 1.0],
+                "textColor": [1.0, 1.0, 1.0, 1.0]
+            },
+            "enabled": false,
+            "fontName": "Default",
+            "glowEnabled": false,
+            "glowStrength": 3.0,
+            "hudScale": 1.0,
+            "position": {"x": 1620.0, "y": 192.6924285888672},
+            "roundedBorders": false,
+            "rowSpacing": 2.0,
+            "showBorder": false,
+            "showSideBar": true,
+            "showSuffix": true,
+            "sideBarWidth": 3.0,
+            "sideMode": 0,
+            "size": 1.0,
+            "textShadow": true,
+            "textShadowOffset": 1.5
+        },
+        "CPSCounter": {
+            "colors": {
+                "shadowColor": [0.0, 0.0, 0.0, 0.699999988079071],
+                "textColor": [1.0, 1.0, 1.0, 1.0]
+            },
+            "enabled": true,
+            "fontName": "Default",
+            "hudScale": 1.2870315313339233,
+            "position": {"x": 1696.123779296875, "y": 424.685302734375}
+        },
+        "ClickGUI": {
+            "bgOpacity": 0.699999988079071,
+            "bgStyle": 1,
+            "bindKey": 16,
+            "blurOpacity": 0.25,
+            "blurRadius": 2.5,
+            "enabled": false,
+            "guiStyle": 0,
+            "showParticles": true,
+            "showRiseBackground": true,
+            "theme": 0
+        },
+        "FPSOverlay": {
+            "bgOpacity": 0.5,
+            "colors": {
+                "accentColor": [1.0, 0.4000000059604645, 0.800000011920929, 1.0],
+                "textColor": [1.0, 1.0, 1.0, 1.0]
+            },
+            "enabled": false,
+            "fontName": "Default",
+            "hudScale": 1.0,
+            "position": {"x": 10.0, "y": 250.0},
+            "scale": 1.0,
+            "showBackground": false
+        },
+        "FullBright": {
+            "enabled": false,
+            "value": 100.0
+        },
+        "Keystrokes": {
+            "blurEffect": false,
+            "border": false,
+            "colors": {
+                "bgColor": [0.0, 0.0, 0.0, 1.0],
+                "borderColor": [0.7799999713897705, 0.7799999713897705, 0.7799999713897705, 1.0],
+                "disabledShadowColor": [0.0, 0.0, 0.0, 0.550000011920929],
+                "enabledColor": [1.0, 1.0, 1.0, 1.0],
+                "enabledShadowColor": [0.0, 0.0, 0.0, 0.800000011920929],
+                "glowColor": [1.0, 1.0, 1.0, 1.0],
+                "glowEnabledColor": [0.9409999847412109, 0.9409999847412109, 1.0, 1.0],
+                "rectShadowColor": [0.0, 0.0, 0.0, 0.550000011920929],
+                "textColor": [1.0, 1.0, 1.0, 1.0],
+                "textEnabledColor": [0.0, 0.0, 0.0, 1.0],
+                "textShadowColor": [0.0, 0.0, 0.0, 0.550000011920929]
+            },
+            "edSpeed": 1.0,
+            "enabled": true,
+            "fontName": "Default",
+            "glow": false,
+            "glowEnabled": false,
+            "glowSpeed": 1.0,
+            "hudScale": 1.4384615421295166,
+            "keySpacing": 1.6299999952316284,
+            "position": {"x": 1707.0, "y": 537.0},
+            "rectShadow": false,
+            "rounding": 0.0,
+            "scale": 1.0,
+            "showBg": false,
+            "showMouseButtons": true,
+            "showSpacebar": true,
+            "textShadow": false
+        },
+        "MotionBlur": {
+            "enabled": false
+        },
+        "PingCounter": {
+            "bgOpacity": 0.5,
+            "colors": {
+                "shadowColor": [0.0, 0.0, 0.0, 0.550000011920929],
+                "textColor": [1.0, 1.0, 1.0, 1.0]
+            },
+            "enabled": false,
+            "fontName": "Default",
+            "hudScale": 1.0,
+            "position": {"x": 1848.0, "y": 10.0},
+            "showBackground": true,
+            "textScale": 1.0,
+            "textShadow": true,
+            "updateInterval": 1000
+        },
+        "PlayerInfo": {
+            "bgOpacity": 0.8999999761581421,
+            "bgRadius": 6.0,
+            "colors": {
+                "borderColor": [1.0, 1.0, 1.0, 0.20000000298023224],
+                "nameColor": [0.9200000166893005, 0.9200000166893005, 0.9599999785423279, 1.0]
+            },
+            "enabled": false,
+            "headRadius": 10.0,
+            "headRounded": true,
+            "headSize": 34.0,
+            "hudScale": 1.6603772640228271,
+            "position": {"x": 1735.2459716796875, "y": 90.673583984375},
+            "showBackground": true,
+            "showBorder": true,
+            "showHatLayer": false,
+            "textScale": 1.0
+        },
+        "RenderInfo": {
+            "bgOpacity": 0.6000000238418579,
+            "colors": {
+                "themeColor": [1.0, 0.4000000059604645, 0.800000011920929, 1.0]
+            },
+            "enabled": false,
+            "fontName": "Default",
+            "hudScale": 1.0,
+            "position": {"x": 10.0, "y": 100.0},
+            "scale": 1.0,
+            "showBackground": true
+        },
+        "Watermark": {
+            "animStyle": 0,
+            "bgOpacity": 0.5,
+            "bgPadX": 10.0,
+            "bgPadY": 5.0,
+            "bgRadius": 5.0,
+            "chromaDirection": true,
+            "chromaSpeed": 1.0,
+            "chromaText": true,
+            "colors": {
+                "bgColor": [0.019999999552965164, 0.019999999552965164, 0.03999999910593033, 1.0],
+                "chromaColors": [
+                    [1.0, 0.4000000059604645, 0.800000011920929, 1.0],
+                    [0.6000000238418579, 0.5, 1.0, 1.0],
+                    [0.4000000059604645, 0.800000011920929, 1.0, 1.0]
+                ],
+                "outlineColor": [0.0, 0.0, 0.0, 1.0],
+                "staticColor": [1.0, 0.4000000059604645, 0.800000011920929, 1.0]
+            },
+            "customText": "Amatayakul",
+            "edgeFade": false,
+            "enabled": true,
+            "fontName": "Default",
+            "fontSize": 32.0,
+            "hudScale": 1.992478370666504,
+            "imageOpacity": 1.0,
+            "imageSize": 28.979808807373047,
+            "mirroredGradient": true,
+            "outlineWidth": 1.5,
+            "position": {"x": 1693.416015625, "y": 0.0},
+            "showBackground": false,
+            "showGlow": true,
+            "showOutline": false,
+            "showShimmer": false,
+            "slideOffset": 40.0,
+            "snapCorner": 0,
+            "snapPadding": 10.0,
+            "useImage": true
+        }
+    },
+    "version": "1.0"
+})json";
+            try {
+                nlohmann::json def = nlohmann::json::parse(kDefaultConfig);
+                std::ofstream f(defaultPath, std::ios::out | std::ios::trunc);
+                if (f.is_open()) f << def.dump(4);
+            } catch (...) {
+                // Fallback: write current state if parse somehow fails
+                nlohmann::json def = CollectCurrentConfig();
+                std::ofstream f(defaultPath, std::ios::out | std::ios::trunc);
+                if (f.is_open()) f << def.dump(4);
+            }
         }
     }
 
