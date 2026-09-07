@@ -194,7 +194,7 @@ void ConfigManager::Initialize() {
         "ClickGUI": {
             "bgOpacity": 0.699999988079071,
             "bgStyle": 1,
-            "bindKey": 16,
+            "bindKey": 161,
             "blurOpacity": 0.25,
             "blurRadius": 2.5,
             "enabled": false,
